@@ -1,0 +1,193 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Enum
+enum MembershipCategory {
+  SUPERADMIN
+  ADMIN
+  USER
+  PROFESSIONAL
+}
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+model Tenant {
+  id          String       @id @default(uuid())
+  name        String
+  slug        String       @unique
+  status      TenantStatus @default(ACTIVE)
+
+  users       TenantMembership[]
+  roles       Role[]
+  sessions    Session[]
+  auditLogs   AuditLog[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  name          String?
+  passwordHash  String
+  isActive      Boolean  @default(true)
+
+  memberships   TenantMembership[]
+  sessions      Session[]
+  auditLogs     AuditLog[] @relation("UserAuditLogs")
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model TenantMembership {
+  id          String              @id @default(uuid())
+
+  tenantId    String
+  userId      String
+
+  category    MembershipCategory
+  isActive    Boolean             @default(true)
+
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  roles       MembershipRole[]
+  auditLogs   AuditLog[]          @relation("MembershipAuditLogs")
+
+  createdAt   DateTime @default(now())
+
+  @@unique([tenantId, userId])
+  @@index([tenantId])
+  @@index([userId])
+}
+
+model Role {
+  id          String   @id @default(uuid())
+
+  tenantId    String?
+  name        String
+  key         String
+  isSystem    Boolean  @default(false)
+
+  tenant      Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  permissions RolePermission[]
+  members     MembershipRole[]
+
+  createdAt   DateTime @default(now())
+
+  @@unique([tenantId, key])
+  @@index([tenantId])
+}
+
+model Permission {
+  id          String  @id @default(uuid())
+  key         String  @unique
+  description String?
+
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  id            String @id @default(uuid())
+
+  roleId        String
+  permissionId  String
+
+  role          Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission    Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+}
+
+model MembershipRole {
+  id            String @id @default(uuid())
+
+  membershipId  String
+  roleId        String
+
+  membership    TenantMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  role          Role             @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([membershipId, roleId])
+  @@index([membershipId])
+  @@index([roleId])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+
+  userId       String
+  tenantId     String
+
+  tokenHash    String   @unique
+
+  ip           String?
+  userAgent    String?
+
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  lastSeenAt   DateTime?
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([tenantId])
+  @@index([expiresAt])
+  @@index([revokedAt])
+}
+
+model AuditLog {
+  id                 String   @id @default(uuid())
+
+  tenantId           String
+  actorUserId        String?
+  actorMembershipId  String?
+
+  action             String
+  resourceType       String
+  resourceId         String?
+
+  method             String?
+  path               String?
+  ip                 String?
+  userAgent          String?
+
+  success            Boolean  @default(true)
+  message            String?
+
+  metadata           Json?
+
+  tenant             Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  actorUser          User?            @relation("UserAuditLogs", fields: [actorUserId], references: [id])
+  actorMembership    TenantMembership? @relation("MembershipAuditLogs", fields: [actorMembershipId], references: [id])
+
+  createdAt          DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([actorUserId])
+  @@index([action])
+}
