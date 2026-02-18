@@ -1,4 +1,3 @@
-// src/lib/auth/permissions.ts
 import "server-only";
 import { getAuthContext } from "./session";
 
@@ -16,18 +15,23 @@ export async function requireAuth() {
     return ctx;
 }
 
+export async function requireSuperAdmin() {
+    const ctx = await requireAuth();
+    if (ctx.category !== "SUPERADMIN") {
+        throw new AuthError("FORBIDDEN", "SuperAdmin only");
+    }
+    return ctx;
+}
+
 export async function requirePermission(permissionKey: string) {
     const ctx = await requireAuth();
 
-    // SUPERADMIN bypass total
+    // bypass total
     if (ctx.category === "SUPERADMIN") return ctx;
 
-    // sin membership activa => no acceso
     if (!ctx.membershipId) throw new AuthError("FORBIDDEN", "No membership for tenant");
-
     if (!ctx.permissions.has(permissionKey)) {
         throw new AuthError("FORBIDDEN", `Missing permission: ${permissionKey}`);
     }
-
     return ctx;
 }

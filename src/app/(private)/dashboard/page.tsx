@@ -35,7 +35,6 @@ export default async function DashboardPage() {
             <h1 className="text-3xl font-bold">
               Welcome back, {user?.name}
             </h1>
-            <LogoutButton />
           </div>
           <p className="text-slate-400 mt-2">
             You are logged into{" "}

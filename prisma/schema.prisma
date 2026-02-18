@@ -27,6 +27,16 @@ enum TenantStatus {
   DELETED
 }
 
+enum AuthEventType {
+  LOGIN_SUCCESS
+  LOGIN_FAILED
+  LOGOUT
+  SESSION_REVOKED
+  SESSION_EXPIRED
+  PASSWORD_RESET_REQUESTED
+  PASSWORD_RESET_COMPLETED
+}
+
 model Tenant {
   id          String       @id @default(uuid())
   name        String
@@ -37,6 +47,7 @@ model Tenant {
   roles       Role[]
   sessions    Session[]
   auditLogs   AuditLog[]
+  authEvents  AuthEvent[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -52,6 +63,7 @@ model User {
   memberships   TenantMembership[]
   sessions      Session[]
   auditLogs     AuditLog[] @relation("UserAuditLogs")
+  authEvents    AuthEvent[]
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -190,4 +202,31 @@ model AuditLog {
   @@index([tenantId, createdAt])
   @@index([actorUserId])
   @@index([action])
+}
+
+
+model AuthEvent {
+  id        String        @id @default(uuid())
+
+  tenantId  String?
+  userId    String?
+
+  type      AuthEventType
+  success   Boolean       @default(true)
+  message   String?
+
+  ip        String?
+  userAgent String?
+  host      String?
+
+  metadata  Json?
+
+  createdAt DateTime      @default(now())
+
+  tenant    Tenant?       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user      User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([userId, createdAt])
+  @@index([type, createdAt])
 }

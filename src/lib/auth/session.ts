@@ -31,6 +31,21 @@ export type AuthContext = {
     permissions: Set<string>;
 };
 
+export async function getAuthStatus() {
+    const jar = await cookies();
+    const token = jar.get(COOKIE_NAME)?.value;
+    if (!token) return { ok: false as const, reason: "missing" as const };
+
+    const hash = tokenHash(token);
+    const session = await prisma.session.findUnique({ where: { tokenHash: hash } });
+
+    if (!session) return { ok: false as const, reason: "invalid" as const };
+    if (session.revokedAt) return { ok: false as const, reason: "revoked" as const };
+    if (session.expiresAt.getTime() <= Date.now()) return { ok: false as const, reason: "expired" as const };
+
+    return { ok: true as const, session };
+}
+
 export async function createSession(params: {
     userId: string;
     tenantId: string;
@@ -106,12 +121,36 @@ export async function getAuthContext(req?: NextRequest): Promise<AuthContext | n
             tenantId: true,
             expiresAt: true,
             revokedAt: true,
+            lastSeenAt: true,
         },
     });
 
     if (!session) return null;
     if (session.revokedAt) return null;
-    if (session.expiresAt.getTime() <= Date.now()) return null;
+    if (session.expiresAt.getTime() <= Date.now()) {
+        // marcar como revocada por expiración (opcional pero recomendado)
+        const upd = await prisma.session.updateMany({
+            where: { tokenHash: hash, revokedAt: null },
+            data: { revokedAt: new Date() },
+        });
+
+        if (upd.count > 0) {
+            // registrar evento
+            await prisma.authEvent.create({
+                data: {
+                    tenantId: session.tenantId,
+                    userId: session.userId,
+                    type: "SESSION_EXPIRED",
+                    success: true,
+                    message: "Session expired",
+                    metadata: { expiresAt: session.expiresAt },
+                },
+                select: { id: true },
+            });
+
+            return null;
+        }
+    }
 
     // 2) Validate tentat
     // 🔐 VALIDAR TENANT VS HOST
@@ -131,12 +170,30 @@ export async function getAuthContext(req?: NextRequest): Promise<AuthContext | n
         return null;
     }
 
-    // 2) lastSeen
-    await prisma.session.update({
-        where: { tokenHash: hash },
-        data: { lastSeenAt: new Date() },
-        select: { id: true },
-    });
+    // 2) lastSeen + refresh window
+    const now = Date.now();
+    const TEN_MIN = 10 * 60 * 1000;
+    const SIX_HOURS = 6 * 60 * 60 * 1000;
+
+    // refresh window: si expira pronto, extiende 1 día (o lo que uses)
+    const extendMs = 24 * 60 * 60 * 1000;
+
+    const shouldTouchLastSeen =
+        !session.lastSeenAt || (now - session.lastSeenAt.getTime() > TEN_MIN);
+
+    const expiresSoon =
+        (session.expiresAt.getTime() - now) < SIX_HOURS;
+
+    if (shouldTouchLastSeen || expiresSoon) {
+        await prisma.session.update({
+            where: { tokenHash: hash },
+            data: {
+                lastSeenAt: new Date(),
+                ...(expiresSoon ? { expiresAt: new Date(now + extendMs) } : {}),
+            },
+            select: { id: true },
+        });
+    }
 
     // 3) Membership + category
     const membership = await prisma.tenantMembership.findUnique({

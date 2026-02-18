@@ -1,7 +1,15 @@
 import { FormLogin } from "@/components";
 import { SiBaremetrics } from "react-icons/si";
 
-export default function page() {
+type LoginSearchParams = {
+  reason?: string;
+};
+
+export default async function page({ searchParams }: { searchParams: Promise<LoginSearchParams> }) {
+
+  const sp = await searchParams;
+  const reason = sp?.reason;
+
   return (
     <section className="bg-[#f6f8f8] dark:bg-[#102220] min-h-screen flex items-center justify-center font-display transition-colors duration-300">
       <div className="flex w-full min-h-screen overflow-hidden">
@@ -23,6 +31,12 @@ export default function page() {
               <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">Welcome back</h1>
               <p className="text-slate-500 dark:text-slate-400">Please enter your details to access your clinic dashboard.</p>
             </div>
+
+            {reason === "session_expired" && (
+              <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                Your session ended because you signed in on another device. Please sign in again.
+              </div>
+            )}
 
             <FormLogin />
 
