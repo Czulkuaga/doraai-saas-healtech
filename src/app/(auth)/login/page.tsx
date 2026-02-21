@@ -10,6 +10,8 @@ export default async function page({ searchParams }: { searchParams: Promise<Log
   const sp = await searchParams;
   const reason = sp?.reason;
 
+  console.log("Login page search params:", sp);
+
   return (
     <section className="bg-[#f6f8f8] dark:bg-[#102220] min-h-screen flex items-center justify-center font-display transition-colors duration-300">
       <div className="flex w-full min-h-screen overflow-hidden">
@@ -34,7 +36,19 @@ export default async function page({ searchParams }: { searchParams: Promise<Log
 
             {reason === "session_expired" && (
               <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-                Your session ended because you signed in on another device. Please sign in again.
+                Su sesión ha expirado. Por favor, inicia sesión de nuevo.
+              </div>
+            )}
+
+            {reason === "session_revoked" && (
+              <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                Su sesión ha sido revocada porque iniciaste sesión en otro dispositivo. Por favor, inicia sesión de nuevo.
+              </div>
+            )}
+
+            {reason === "not_authenticated" && (
+              <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                No estás autenticado. Por favor, inicia sesión de nuevo.
               </div>
             )}
 

@@ -31,19 +31,105 @@ export type AuthContext = {
     permissions: Set<string>;
 };
 
+const TEN_MIN = 10 * 60 * 1000;     // para throttling writes
+const IDLE_LIMIT = 30 * 60 * 1000;  // 30 minutos inactividad (ajusta si quieres)
+
 export async function getAuthStatus() {
     const jar = await cookies();
     const token = jar.get(COOKIE_NAME)?.value;
-    if (!token) return { ok: false as const, reason: "missing" as const };
+
+    if (!token) {
+        return { ok: false as const, reason: "missing" as const };
+    }
 
     const hash = tokenHash(token);
-    const session = await prisma.session.findUnique({ where: { tokenHash: hash } });
 
-    if (!session) return { ok: false as const, reason: "invalid" as const };
-    if (session.revokedAt) return { ok: false as const, reason: "revoked" as const };
-    if (session.expiresAt.getTime() <= Date.now()) return { ok: false as const, reason: "expired" as const };
+    const session = await prisma.session.findUnique({
+        where: { tokenHash: hash },
+        select: {
+            userId: true,
+            tenantId: true,
+            expiresAt: true,
+            revokedAt: true,
+            lastSeenAt: true,
+        },
+    });
 
-    return { ok: true as const, session };
+    if (!session) {
+        return { ok: false as const, reason: "invalid" as const };
+    }
+
+    // 🔴 Revocada manualmente (logout o login en otro navegador)
+    if (session.revokedAt) {
+        return { ok: false as const, reason: "revoked" as const };
+    }
+
+    const now = Date.now();
+
+    // 🔴 Expirada por tiempo absoluto
+    if (session.expiresAt.getTime() <= now) {
+        await prisma.session.updateMany({
+            where: { tokenHash: hash, revokedAt: null },
+            data: { revokedAt: new Date() },
+        });
+
+        return { ok: false as const, reason: "expired" as const };
+    }
+
+    // 🔴 Idle timeout
+    if (
+        session.lastSeenAt &&
+        now - session.lastSeenAt.getTime() > IDLE_LIMIT
+    ) {
+        await prisma.session.updateMany({
+            where: { tokenHash: hash, revokedAt: null },
+            data: { revokedAt: new Date() },
+        });
+
+        await prisma.authEvent.create({
+            data: {
+                tenantId: session.tenantId,
+                userId: session.userId,
+                type: "SESSION_IDLE_TIMEOUT",
+                success: true,
+                message: "Session revoked due to inactivity",
+            },
+            select: { id: true },
+        });
+
+        return { ok: false as const, reason: "expired" as const };
+    }
+
+    // 🔐 Validar tenant vs host (subdominio)
+    const h = await headers();
+    const host = h.get("host") ?? "";
+    const sub = host.split(".")[0];
+
+    const tenant = await prisma.tenant.findUnique({
+        where: { id: session.tenantId },
+        select: { slug: true },
+    });
+
+    if (!tenant || tenant.slug !== sub) {
+        return { ok: false as const, reason: "invalid" as const };
+    }
+
+    // 🧠 Throttle lastSeenAt (solo cada 10 min)
+    if (
+        !session.lastSeenAt ||
+        now - session.lastSeenAt.getTime() > TEN_MIN
+    ) {
+        await prisma.session.update({
+            where: { tokenHash: hash },
+            data: { lastSeenAt: new Date() },
+            select: { id: true },
+        });
+    }
+
+    return {
+        ok: true as const,
+        session,
+    };
 }
 
 export async function createSession(params: {
@@ -128,14 +214,12 @@ export async function getAuthContext(req?: NextRequest): Promise<AuthContext | n
     if (!session) return null;
     if (session.revokedAt) return null;
     if (session.expiresAt.getTime() <= Date.now()) {
-        // marcar como revocada por expiración (opcional pero recomendado)
         const upd = await prisma.session.updateMany({
             where: { tokenHash: hash, revokedAt: null },
             data: { revokedAt: new Date() },
         });
 
         if (upd.count > 0) {
-            // registrar evento
             await prisma.authEvent.create({
                 data: {
                     tenantId: session.tenantId,
@@ -147,9 +231,9 @@ export async function getAuthContext(req?: NextRequest): Promise<AuthContext | n
                 },
                 select: { id: true },
             });
-
-            return null;
         }
+
+        return null; // ✅ SIEMPRE
     }
 
     // 2) Validate tentat

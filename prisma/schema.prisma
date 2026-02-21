@@ -33,6 +33,7 @@ enum AuthEventType {
   LOGOUT
   SESSION_REVOKED
   SESSION_EXPIRED
+  SESSION_IDLE_TIMEOUT
   PASSWORD_RESET_REQUESTED
   PASSWORD_RESET_COMPLETED
 }
@@ -203,7 +204,6 @@ model AuditLog {
   @@index([actorUserId])
   @@index([action])
 }
-
 
 model AuthEvent {
   id        String        @id @default(uuid())

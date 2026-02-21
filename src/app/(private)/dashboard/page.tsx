@@ -1,90 +1,96 @@
-import { LogoutButton } from "@/components";
-import { getAuthContext } from "@/lib/auth/session";
-import { prisma } from "@/lib/prisma";
-import { redirect } from "next/navigation";
+import { Suspense } from "react";
+import { getAuthStatusCached } from "@/lib/auth/auth-cache";
+
+// Types
+import type { AlertItem } from "@/components/private/dashboard/ClinicalAlerts";
+
+//Components
+import { DashboardHeader, LastAccessSection, LastAccessTableSkeleton } from "@/components";
+import { KpiGrid } from "@/components/";
+import { ClinicalAlerts } from "@/components";
+
+//Icons
+import { FaRegCalendarAlt } from "react-icons/fa";
+import { FaUserCheck } from "react-icons/fa";
+import { RiMoneyEuroBoxFill } from "react-icons/ri";
+import { FaStopwatch } from "react-icons/fa";
+
+import { PiJarLabel } from "react-icons/pi";
+import { MdDescription } from "react-icons/md";
+import { MdOutlinePriorityHigh } from "react-icons/md";
+import { RiCalendarScheduleLine } from "react-icons/ri";
+
+
+
 
 export default async function DashboardPage() {
-  const ctx = await getAuthContext();
+  const st = await getAuthStatusCached();
+  if (!st.ok) return null;
 
-  if (!ctx) {
-    redirect("/login");
-  }
+  const { userId, tenantId } = st.session;
 
-  const user = await prisma.user.findUnique({
-    where: { id: ctx.userId },
-    select: {
-      name: true,
-      email: true,
+  const kpis = [
+    {
+      title: "Citas de Hoy",
+      value: "24",
+      note: "Próxima cita en 15 min",
+      icon: <FaRegCalendarAlt size={20} />,
+      iconClass: "text-[#13ecda] dark:text-[#0ab9c1]",
+      iconWrapClass: "bg-[#13ecda]/10",
+      badge: { text: "+12.5%", icon: "trending_up", className: "text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10" },
     },
-  });
-
-  const tenant = await prisma.tenant.findUnique({
-    where: { id: ctx.tenantId },
-    select: {
-      name: true,
-      slug: true,
+    {
+      title: "Pacientes Atendidos",
+      value: "142",
+      icon: <FaUserCheck size={20} />,
+      iconClass: "text-blue-500",
+      iconWrapClass: "bg-blue-500/10",
+      progress: { value: 65, barClass: "bg-blue-500" },
     },
-  });
+    {
+      title: "Ingresos del Mes",
+      value: "$12,450",
+      note: "Meta: $15,000",
+      icon: <RiMoneyEuroBoxFill size={20} />,
+      iconClass: "text-emerald-500",
+      iconWrapClass: "bg-emerald-500/10",
+      badge: { text: "+8%", className: "text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10" },
+    },
+    {
+      title: "Pacientes en Espera",
+      value: "8",
+      note: "Tiempo medio: 12 min",
+      noteClassName: "text-amber-600 font-medium",
+      icon: <FaStopwatch size={20} />,
+      iconClass: "text-amber-500",
+      iconWrapClass: "bg-amber-500/10",
+    },
+  ];
+
+  const alerts: AlertItem[] = [
+    { tone: "amber", icon: <PiJarLabel size={20} />, title: "Resultados Listos", desc: "Resultados de laboratorio disponibles para Carlos Slim.", time: "Hace 5 min" },
+    { tone: "primary", icon: <MdDescription size={20} />, title: "Reporte Firmado", desc: "Dr. Smith ha firmado el reporte post-operatorio.", time: "Hace 45 min" },
+    { tone: "red", icon: <MdOutlinePriorityHigh size={20} />, title: "Cita Cancelada", desc: "Paciente Laura Mena canceló su cita de las 4 PM.", time: "Hace 2 horas" },
+    { tone: "blue", icon: <RiCalendarScheduleLine size={20} />, title: "Nueva Cita", desc: "Agendada cita de control para Juan Perez el 24/10.", time: "Hace 3 horas" },
+  ];
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white p-10">
-      <div className="max-w-4xl mx-auto space-y-8">
 
-        <div>
-          <div className="flex justify-between items-center">
-            <h1 className="text-3xl font-bold">
-              Welcome back, {user?.name}
-            </h1>
-          </div>
-          <p className="text-slate-400 mt-2">
-            You are logged into{" "}
-            <span className="text-[#13ecda] font-semibold">
-              {tenant?.name}
-            </span>
-          </p>
-        </div>
+    <div className="p-8">
+      <DashboardHeader
+        title="Panel de Control General"
+        subtitle="Bienvenido de nuevo, aquí tienes el resumen del día de hoy."
+      />
 
-        <div className="grid grid-cols-2 gap-6">
+      <KpiGrid items={kpis} />
 
-          <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
-            <h2 className="text-sm font-semibold text-slate-400 mb-2">
-              Account Information
-            </h2>
-            <p><strong>Email:</strong> {user?.email}</p>
-            <p><strong>Category:</strong> {ctx.category}</p>
-          </div>
-
-          <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
-            <h2 className="text-sm font-semibold text-slate-400 mb-2">
-              Tenant Information
-            </h2>
-            <p><strong>Slug:</strong> {tenant?.slug}</p>
-            <p><strong>Tenant ID:</strong> {ctx.tenantId}</p>
-          </div>
-
-        </div>
-
-        <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
-          <h2 className="text-sm font-semibold text-slate-400 mb-4">
-            Permissions
-          </h2>
-
-          {ctx.permissions.size === 0 ? (
-            <p className="text-slate-500 text-sm">
-              No explicit permissions (possibly SUPERADMIN).
-            </p>
-          ) : (
-            <ul className="grid grid-cols-2 gap-2 text-sm text-slate-300">
-              {[...ctx.permissions].map((p) => (
-                <li key={p} className="bg-slate-800 px-3 py-2 rounded-md">
-                  {p}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <Suspense fallback={<LastAccessTableSkeleton />}>
+          <LastAccessSection userId={userId} tenantId={tenantId} />
+        </Suspense>
+        <ClinicalAlerts count={5} items={alerts} />
       </div>
     </div>
+
   );
 }
