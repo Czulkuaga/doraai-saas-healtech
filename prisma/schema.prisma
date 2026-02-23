@@ -1,9 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client"
   output   = "../generated/prisma"
@@ -13,7 +10,9 @@ datasource db {
   provider = "postgresql"
 }
 
+// ------------------------------------------------
 // Enum
+// ------------------------------------------------
 enum MembershipCategory {
   SUPERADMIN
   ADMIN
@@ -38,74 +37,303 @@ enum AuthEventType {
   PASSWORD_RESET_COMPLETED
 }
 
+enum PartnerType {
+  PERSON
+  ORGANIZATION
+}
+
+enum BPRoleType {
+  PATIENT
+  PROVIDER
+  STAFF
+  INSURER
+  CONTACT
+  SUPPLIER
+}
+
+enum NumberRangeObject {
+  BUSINESS_PARTNER
+  ORG_UNIT
+  LOCATION
+  APPOINTMENT
+  PREVENTIVE_CASE
+}
+
+enum TranslatableEntity {
+  SPECIALTY
+  SERVICE_TYPE
+  ORG_UNIT
+  LOCATION
+}
+
+enum TranslatableField {
+  NAME
+  DESCRIPTION
+}
+
+// ------------------------------------------------
+// Preventive Medicine (Transactional / Template-driven)
+// ------------------------------------------------
+
+enum PreventiveTemplateStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum PreventiveCaseStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum PreventiveFieldType {
+  TEXT
+  TEXTAREA
+  NUMBER
+  BOOLEAN
+  DATE
+  DATETIME
+  SINGLE_SELECT
+  MULTI_SELECT
+  FILE
+  JSON
+}
+
+enum PreventiveValueKind {
+  STRING
+  NUMBER
+  BOOLEAN
+  DATE
+  DATETIME
+  OPTION
+  OPTION_LIST
+  JSON
+}
+
+// ------------------------------------------------
+// Models
+// ------------------------------------------------
+
 model Tenant {
-  id          String       @id @default(uuid())
-  name        String
-  slug        String       @unique
-  status      TenantStatus @default(ACTIVE)
+  id        String       @id @default(uuid())
+  code      String       @unique // tipo SAP "BUKRS"
+  name      String
+  slug      String       @unique
+  status    TenantStatus @default(ACTIVE)
+  deletedAt DateTime?
 
-  users       TenantMembership[]
-  roles       Role[]
-  sessions    Session[]
-  auditLogs   AuditLog[]
-  authEvents  AuthEvent[]
+  // Defaults (SAP-like: sociedad/empresa tiene defaults)
+  countryCode         String?
+  defaultLocaleCode   String
+  defaultTimeZoneId   String
+  defaultCurrencyCode String
+  // defaultLanguageCode String
+  // defaultLanguage     Language     @relation(fields: [defaultLanguageCode], references: [code])
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  defaultLocale   Locale   @relation("TenantDefaultLocale", fields: [defaultLocaleCode], references: [code], onDelete: Restrict)
+  defaultTimeZone TimeZone @relation(fields: [defaultTimeZoneId], references: [id], onDelete: Restrict)
+  defaultCurrency Currency @relation(fields: [defaultCurrencyCode], references: [code], onDelete: Restrict)
+  country         Country? @relation(fields: [countryCode], references: [code], onDelete: Restrict)
+
+  // CORE
+  orgUnits      OrgUnit[]
+  locations     Location[]
+  partners      BusinessPartner[]
+  tenantLocales TenantLocale[]
+  serviceTypes  ServiceType[]
+  specialties   Specialty[]
+  numberRanges  NumberRange[]
+  memberships   TenantMembership[]
+
+  //Preventive Medicine
+  preventiveTemplates        PreventiveTemplate[]
+  preventiveCases            PreventiveCase[]
+  preventiveTemplateVersions PreventiveTemplateVersion[]
+  preventiveTemplateFields   PreventiveTemplateField[]
+  preventiveTemplateSections PreventiveTemplateSection[]
+  preventiveFieldOptions     PreventiveFieldOption[]
+  preventiveCaseValueOptions PreventiveCaseValueOption[]
+
+  // users      TenantMembership[]
+  roles      Role[]
+  sessions   Session[]
+  auditLogs  AuditLog[]
+  authEvents AuthEvent[]
+
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  businessPartnerRoles BusinessPartnerRole[]
+}
+
+model OrgUnit {
+  id       String @id @default(uuid())
+  tenantId String
+
+  // SAP-like org unit key
+  code String
+  name String
+
+  // Parent by business key (tenant-scoped)
+  parentCode String?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  // composite self-relation: (tenantId,parentCode) -> (tenantId,code)
+  parent   OrgUnit?  @relation("OrgHierarchy", fields: [tenantId, parentCode], references: [tenantId, code], onDelete: Restrict)
+  children OrgUnit[] @relation("OrgHierarchy")
+
+  preventiveCases PreventiveCase[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([tenantId, parentCode])
+}
+
+model Location {
+  id       String @id @default(uuid())
+  tenantId String
+
+  code String
+  name String
+
+  addressLine1 String?
+  city         String?
+  postalCode   String?
+
+  countryCode String?
+  country     Country? @relation(fields: [countryCode], references: [code], onDelete: Restrict)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  preventiveCases PreventiveCase[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([countryCode])
+}
+
+model TenantLocale {
+  id         String  @id @default(uuid())
+  tenantId   String
+  localeCode String
+  isActive   Boolean @default(true)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  locale Locale @relation(fields: [localeCode], references: [code], onDelete: Restrict)
+
+  @@unique([tenantId, localeCode])
+  @@index([tenantId])
+  @@index([localeCode])
+}
+
+model BusinessPartnerRole {
+  id String @id @default(uuid())
+
+  tenantId  String
+  partnerId String
+  role      BPRoleType
+
+  tenant  Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  partner BusinessPartner @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  // Evita duplicados por partner
+  @@unique([tenantId, partnerId, role])
+  // Índices multi-tenant (queries reales)
+  @@index([tenantId, role])
+  @@index([tenantId, partnerId])
+  @@index([role])
+}
+
+model Translation {
+  id       String  @id @default(uuid())
+  tenantId String?
+
+  entity   TranslatableEntity
+  entityId String
+  field    TranslatableField
+
+  localeCode String
+  value      String
+
+  locale Locale @relation(fields: [localeCode], references: [code], onDelete: Restrict)
+
+  @@unique([tenantId, entity, entityId, field, localeCode])
+  @@index([entity, entityId])
+  @@index([localeCode])
+}
+
+model ProviderProfile {
+  id        String @id @default(uuid())
+  partnerId String @unique // 1:1 con BP
+
+  licenseNumber String?
+  isActive      Boolean @default(true)
+
+  partner BusinessPartner @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+
+  specialties     ProviderSpecialty[]
+  preventiveCases PreventiveCase[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ProviderSpecialty {
+  id          String  @id @default(uuid())
+  providerId  String
+  specialtyId String
+  isPrimary   Boolean @default(false)
+
+  provider  ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  specialty Specialty       @relation(fields: [specialtyId], references: [id], onDelete: Restrict)
+
+  @@unique([providerId, specialtyId])
+  @@index([specialtyId])
 }
 
 model User {
-  id            String   @id @default(uuid())
-  email         String   @unique
-  name          String?
-  passwordHash  String
-  isActive      Boolean  @default(true)
+  id              String  @id @default(uuid())
+  email           String
+  emailNormalized String  @unique
+  name            String?
+  passwordHash    String
+  isActive        Boolean @default(true)
 
-  memberships   TenantMembership[]
-  sessions      Session[]
-  auditLogs     AuditLog[] @relation("UserAuditLogs")
-  authEvents    AuthEvent[]
+  memberships TenantMembership[]
+  sessions    Session[]
+  authEvents  AuthEvent[]
+  // userPreference UserPreference?
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-}
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-model TenantMembership {
-  id          String              @id @default(uuid())
-
-  tenantId    String
-  userId      String
-
-  category    MembershipCategory
-  isActive    Boolean             @default(true)
-
-  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  roles       MembershipRole[]
-  auditLogs   AuditLog[]          @relation("MembershipAuditLogs")
-
-  createdAt   DateTime @default(now())
-
-  @@unique([tenantId, userId])
-  @@index([tenantId])
-  @@index([userId])
+  @@index([emailNormalized])
 }
 
 model Role {
-  id          String   @id @default(uuid())
+  id String @id @default(uuid())
 
-  tenantId    String?
-  name        String
-  key         String
-  isSystem    Boolean  @default(false)
+  tenantId String?
+  name     String
+  key      String
+  isSystem Boolean @default(false)
 
-  tenant      Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
   permissions RolePermission[]
   members     MembershipRole[]
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@unique([tenantId, key])
   @@index([tenantId])
@@ -116,31 +344,55 @@ model Permission {
   key         String  @unique
   description String?
 
-  roles       RolePermission[]
+  roles RolePermission[]
 }
 
 model RolePermission {
-  id            String @id @default(uuid())
+  id String @id @default(uuid())
 
-  roleId        String
-  permissionId  String
+  roleId       String
+  permissionId String
 
-  role          Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission    Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Restrict)
 
   @@unique([roleId, permissionId])
   @@index([roleId])
   @@index([permissionId])
 }
 
+model TenantMembership {
+  id String @id @default(uuid())
+
+  tenantId String
+  userId   String
+
+  category MembershipCategory
+  isActive Boolean            @default(true)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  roles     MembershipRole[]
+  auditLogs AuditLog[]
+
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, userId])
+  @@index([tenantId])
+  @@index([userId])
+  @@index([tenantId, userId])
+  @@index([tenantId, isActive])
+}
+
 model MembershipRole {
-  id            String @id @default(uuid())
+  id String @id @default(uuid())
 
-  membershipId  String
-  roleId        String
+  membershipId String
+  roleId       String
 
-  membership    TenantMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
-  role          Role             @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  membership TenantMembership @relation(fields: [membershipId], references: [id], onDelete: Restrict)
+  role       Role             @relation(fields: [roleId], references: [id], onDelete: Restrict)
 
   @@unique([membershipId, roleId])
   @@index([membershipId])
@@ -148,85 +400,525 @@ model MembershipRole {
 }
 
 model Session {
-  id           String   @id @default(uuid())
+  id String @id @default(uuid())
 
-  userId       String
-  tenantId     String
+  userId   String
+  tenantId String
 
-  tokenHash    String   @unique
+  tokenHash String @unique
 
-  ip           String?
-  userAgent    String?
+  ip        String?
+  userAgent String?
 
-  expiresAt    DateTime
-  revokedAt    DateTime?
-  lastSeenAt   DateTime?
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  lastSeenAt DateTime?
 
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
-  createdAt    DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([userId])
   @@index([tenantId])
   @@index([expiresAt])
   @@index([revokedAt])
+  @@index([tokenHash])
+  @@index([tenantId, userId])
 }
 
 model AuditLog {
-  id                 String   @id @default(uuid())
+  id String @id @default(uuid())
 
-  tenantId           String
-  actorUserId        String?
-  actorMembershipId  String?
+  tenantId          String
+  actorMembershipId String
 
-  action             String
-  resourceType       String
-  resourceId         String?
+  action       String
+  resourceType String
+  resourceId   String?
 
-  method             String?
-  path               String?
-  ip                 String?
-  userAgent          String?
+  method    String?
+  path      String?
+  ip        String?
+  userAgent String?
 
-  success            Boolean  @default(true)
-  message            String?
+  success  Boolean @default(true)
+  message  String?
+  metadata Json?
 
-  metadata           Json?
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  actorMembership TenantMembership @relation(fields: [actorMembershipId], references: [id], onDelete: Restrict)
 
-  tenant             Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  actorUser          User?            @relation("UserAuditLogs", fields: [actorUserId], references: [id])
-  actorMembership    TenantMembership? @relation("MembershipAuditLogs", fields: [actorMembershipId], references: [id])
-
-  createdAt          DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([tenantId, createdAt])
-  @@index([actorUserId])
+  @@index([actorMembershipId])
   @@index([action])
 }
 
 model AuthEvent {
-  id        String        @id @default(uuid())
+  id String @id @default(uuid())
 
-  tenantId  String?
-  userId    String?
+  tenantId String?
+  userId   String?
 
-  type      AuthEventType
-  success   Boolean       @default(true)
-  message   String?
+  type    AuthEventType
+  success Boolean       @default(true)
+  message String?
 
   ip        String?
   userAgent String?
   host      String?
 
-  metadata  Json?
+  metadata Json?
 
-  createdAt DateTime      @default(now())
+  createdAt DateTime @default(now())
 
-  tenant    Tenant?       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user      User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, createdAt])
   @@index([userId, createdAt])
   @@index([type, createdAt])
+}
+
+model NumberRange {
+  id       String            @id @default(uuid())
+  tenantId String
+  object   NumberRangeObject
+
+  prefix  String?
+  nextNo  Int
+  padding Int     @default(8)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, object])
+  @@index([tenantId])
+}
+
+// ------------------------------------------------
+// Preventive Medicine (Transactional / Template-driven)
+// ------------------------------------------------
+
+model PreventiveTemplate {
+  id       String @id @default(uuid())
+  tenantId String
+
+  code String
+  name String
+
+  status   PreventiveTemplateStatus @default(DRAFT)
+  isActive Boolean                  @default(true)
+
+  serviceTypeId String?
+  specialtyId   String?
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  serviceType ServiceType? @relation(fields: [serviceTypeId], references: [id], onDelete: Restrict)
+  specialty   Specialty?   @relation(fields: [specialtyId], references: [id], onDelete: Restrict)
+
+  versions PreventiveTemplateVersion[] @relation("TemplateVersions")
+
+  publishedVersionId String?                    @unique
+  publishedVersion   PreventiveTemplateVersion? @relation("PublishedVersion", fields: [publishedVersionId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, isActive])
+}
+
+model PreventiveTemplateSection {
+  id        String @id @default(uuid())
+  tenantId  String
+  versionId String
+
+  key   String
+  title String
+  order Int
+
+  tenant  Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  version PreventiveTemplateVersion @relation(fields: [versionId], references: [id], onDelete: Restrict)
+
+  fields PreventiveTemplateField[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([versionId, key])
+  @@index([tenantId])
+  @@index([versionId, order])
+}
+
+model PreventiveTemplateVersion {
+  id         String @id @default(uuid())
+  tenantId   String
+  templateId String
+  version    Int
+
+  status      PreventiveTemplateStatus @default(DRAFT)
+  publishedAt DateTime?
+  rules       Json?
+
+  tenant   Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  template PreventiveTemplate @relation("TemplateVersions", fields: [templateId], references: [id], onDelete: Restrict)
+
+  sections PreventiveTemplateSection[]
+  fields   PreventiveTemplateField[]
+  options  PreventiveFieldOption[]
+  cases    PreventiveCase[]
+
+  publishedByTemplate PreventiveTemplate? @relation("PublishedVersion")
+
+  createdAt DateTime @default(now())
+
+  @@unique([templateId, version])
+  @@index([tenantId])
+  @@index([templateId])
+  @@index([status])
+  @@index([tenantId, templateId])
+}
+
+model PreventiveTemplateField {
+  id        String  @id @default(uuid())
+  tenantId  String
+  versionId String
+  sectionId String?
+
+  key   String
+  label String
+  type  PreventiveFieldType
+
+  required Boolean @default(false)
+  order    Int
+  config   Json?
+
+  tenant  Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  version PreventiveTemplateVersion  @relation(fields: [versionId], references: [id], onDelete: Restrict)
+  section PreventiveTemplateSection? @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+
+  options PreventiveFieldOption[]
+  values  PreventiveCaseValue[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([versionId, key])
+  @@index([tenantId])
+  @@index([versionId, order])
+  @@index([sectionId, order])
+  @@index([versionId, sectionId, order])
+  @@index([type])
+}
+
+model PreventiveFieldOption {
+  id        String @id @default(uuid())
+  tenantId  String
+  versionId String
+  fieldId   String
+
+  key   String
+  label String
+  order Int
+
+  tenant  Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  version PreventiveTemplateVersion @relation(fields: [versionId], references: [id], onDelete: Restrict)
+  field   PreventiveTemplateField   @relation(fields: [fieldId], references: [id], onDelete: Restrict)
+
+  singleSelectValues PreventiveCaseValue[] @relation("SingleSelectOption")
+  multiSelectLinks   PreventiveCaseValueOption[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([fieldId, key])
+  @@index([tenantId])
+  @@index([fieldId, order])
+  @@index([versionId])
+}
+
+model PreventiveCase {
+  id       String @id @default(uuid())
+  tenantId String
+
+  // Business code generated from NumberRange(PREVENTIVE_CASE)
+  code String
+
+  status PreventiveCaseStatus @default(OPEN)
+
+  // Who is this case for?
+  patientId String
+
+  // Optional clinical assignment
+  providerProfileId String?
+  orgUnitId         String?
+  locationId        String?
+
+  // Link to template version (immutable for the case)
+  templateVersionId String
+
+  // Optional classification / scheduling
+  serviceTypeId String?
+  specialtyId   String?
+
+  // Audit-ish timestamps
+  openedAt    DateTime  @default(now())
+  completedAt DateTime?
+  cancelledAt DateTime?
+
+  // Free notes
+  notes String?
+
+  tenant  Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  patient BusinessPartner @relation(fields: [patientId], references: [id], onDelete: Restrict)
+
+  providerProfile ProviderProfile? @relation(fields: [providerProfileId], references: [id], onDelete: Restrict)
+  orgUnit         OrgUnit?         @relation(fields: [orgUnitId], references: [id], onDelete: Restrict)
+  location        Location?        @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
+  templateVersion PreventiveTemplateVersion @relation(fields: [templateVersionId], references: [id], onDelete: Restrict)
+
+  serviceType ServiceType? @relation(fields: [serviceTypeId], references: [id], onDelete: Restrict)
+  specialty   Specialty?   @relation(fields: [specialtyId], references: [id], onDelete: Restrict)
+
+  values PreventiveCaseValue[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, patientId])
+  @@index([tenantId, patientId, status])
+  @@index([tenantId, templateVersionId])
+  @@index([tenantId, providerProfileId])
+  @@index([tenantId, orgUnitId])
+  @@index([tenantId, locationId])
+}
+
+model PreventiveCaseValue {
+  id       String @id @default(uuid())
+  tenantId String
+
+  caseId  String
+  fieldId String
+
+  // Kind mirrors what was stored (for consistency & reporting)
+  kind PreventiveValueKind
+
+  // Typed storage (only one should be used per row; enforced in service layer)
+  valueString   String?
+  valueNumber   Decimal?
+  valueBoolean  Boolean?
+  valueDate     DateTime?
+  valueDateTime DateTime?
+  valueJson     Json?
+
+  // For selects
+  optionId String?
+
+  case   PreventiveCase          @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  field  PreventiveTemplateField @relation(fields: [fieldId], references: [id], onDelete: Restrict)
+  option PreventiveFieldOption?  @relation("SingleSelectOption", fields: [optionId], references: [id], onDelete: Restrict)
+
+  options PreventiveCaseValueOption[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([caseId, fieldId])
+  @@index([tenantId])
+  @@index([caseId])
+  @@index([fieldId])
+  @@index([kind])
+  @@index([optionId])
+  @@index([tenantId, caseId])
+  @@index([tenantId, fieldId])
+}
+
+model PreventiveCaseValueOption {
+  id       String @id @default(uuid())
+  tenantId String
+
+  valueId  String
+  optionId String
+
+  tenant Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  value  PreventiveCaseValue   @relation(fields: [valueId], references: [id], onDelete: Restrict)
+  option PreventiveFieldOption @relation(fields: [optionId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@unique([valueId, optionId])
+  @@index([tenantId])
+  @@index([valueId])
+  @@index([optionId])
+  @@index([tenantId, valueId])
+  @@index([tenantId, optionId])
+}
+
+// ------------------------------------------------
+// Master data
+// ------------------------------------------------
+
+model BusinessPartner {
+  id       String @id @default(uuid())
+  tenantId String
+
+  code String
+  type PartnerType
+
+  firstName        String?
+  lastName         String?
+  organizationName String?
+
+  email String?
+  phone String?
+
+  birthDate DateTime?
+  // nationalId se elimina (ver Paso 5)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  roles           BusinessPartnerRole[]
+  identifiers     PartnerIdentifier[]
+  providerProfile ProviderProfile?
+  preventiveCases PreventiveCase[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([tenantId, email])
+  @@index([tenantId, phone])
+  @@index([tenantId, code])
+}
+
+// ------------------------------------------------
+// Catalog data
+// ------------------------------------------------
+
+model ServiceType {
+  id       String  @id @default(uuid())
+  tenantId String
+  code     String
+  isActive Boolean @default(true)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  preventiveTemplates PreventiveTemplate[]
+  preventiveCases     PreventiveCase[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+}
+
+model PartnerIdentifier {
+  id        String @id @default(uuid())
+  tenantId  String
+  partnerId String
+
+  type        String // "DNI", "NIF", "SSN", "PASSPORT", etc.
+  value       String
+  countryCode String?
+
+  partner BusinessPartner @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  country Country?        @relation(fields: [countryCode], references: [code], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  // Un identificador puede existir en varios tenants (multi-clínica) sin romper BD
+  @@unique([tenantId, type, value])
+  @@index([partnerId])
+  @@index([tenantId, type, value])
+  @@index([countryCode])
+  @@index([tenantId, value])
+}
+
+// Idioma / Locale (BCP-47)
+// Usa códigos tipo: es-ES, fr-BE, nl-BE, de-DE, it-IT, pt-PT.
+
+model Locale {
+  code     String  @id // "es-ES", "fr-BE", "nl-BE"
+  language String // "es", "fr", "nl"
+  region   String? // "ES", "BE", "DE"
+  name     String // "Español (España)"
+  isActive Boolean @default(true)
+
+  tenantsDefault   Tenant[]       @relation("TenantDefaultLocale")
+  tenantsSupported TenantLocale[]
+  // userPreferences  UserPreference[]
+  translations     Translation[]
+}
+
+// Zona horaria (IANA)
+// Ej: Europe/Brussels, Europe/Madrid.
+
+model TimeZone {
+  id       String  @id // usa el propio IANA ID como PK
+  label    String // "Europe/Brussels"
+  isActive Boolean @default(true)
+
+  tenants Tenant[]
+  // userPreferences UserPreference[]
+}
+
+// Moneda (ISO 4217)
+// Ej: EUR, GBP, CHF.
+
+model Currency {
+  code     String  @id // "EUR"
+  name     String
+  symbol   String?
+  decimals Int     @default(2)
+  isActive Boolean @default(true)
+
+  tenants   Tenant[]
+  countries Country[] // ✅ países cuya moneda oficial es esta
+}
+
+// País (ISO 3166-1 alpha-2)
+
+model Country {
+  code     String  @id // "BE"
+  name     String
+  euMember Boolean @default(false)
+  isActive Boolean @default(true)
+
+  currencyCode String
+  currency     Currency @relation(fields: [currencyCode], references: [code], onDelete: Restrict)
+
+  tenants            Tenant[]
+  locations          Location[]
+  partnerIdentifiers PartnerIdentifier[]
+
+  @@index([currencyCode])
+}
+
+model Specialty {
+  id       String  @id @default(uuid())
+  tenantId String
+  code     String
+  isActive Boolean @default(true)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  providerSpecialties ProviderSpecialty[]
+  preventiveTemplates PreventiveTemplate[]
+  preventiveCases     PreventiveCase[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
 }

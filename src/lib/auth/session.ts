@@ -2,45 +2,131 @@
 import "server-only";
 import crypto from "crypto";
 import { cookies, headers } from "next/headers";
+import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { resolveTenantSlugFromRequest } from "./tenant";
-import type { NextRequest } from "next/server";
+import {
+    AuthEventType,
+    MembershipCategory,
+    TenantStatus,
+    Prisma,
+} from "../../../generated/prisma/client";
 
 const COOKIE_NAME = process.env.AUTH_COOKIE_NAME ?? "dora_session";
 const PEPPER = process.env.AUTH_TOKEN_PEPPER ?? "dev-pepper";
+
 const SESSION_DAYS = Number(process.env.AUTH_SESSION_DAYS ?? "1");
 const REMEMBER_DAYS = Number(process.env.AUTH_REMEMBER_DAYS ?? "30");
+
+// Security: en prod NO deberías bypass host/tenant.
+// Útil para local/dev cuando no tienes subdominios.
+const ALLOW_HOST_BYPASS = process.env.AUTH_ALLOW_HOST_BYPASS === "true";
+
+const TEN_MIN = 10 * 60 * 1000; // throttling writes lastSeenAt
+const IDLE_LIMIT = 30 * 60 * 1000; // 30 min
 
 function sha256(input: string) {
     return crypto.createHash("sha256").update(input).digest("hex");
 }
-
 function tokenHash(token: string) {
     return sha256(`${token}.${PEPPER}`);
 }
-
 function newToken() {
     return crypto.randomBytes(48).toString("base64url");
+}
+
+// host -> tenantSlug (subdomain) parsing
+function getSubdomainFromHost(host: string): string | null {
+    if (!host) return null;
+    // strip port
+    const clean = host.toLowerCase().replace(/:\d+$/, "");
+
+    // examples:
+    // clinic-01.domain.com -> clinic-01
+    // clinic-01.localhost -> clinic-01
+    // localhost -> (no subdomain)
+    // 127.0.0.1 -> (no subdomain)
+    const parts = clean.split(".").filter(Boolean);
+    if (parts.length < 2) return null;
+
+    // If ends with localhost, still ok (clinic-01.localhost)
+    // Return first label always
+    return parts[0] ?? null;
 }
 
 export type AuthContext = {
     userId: string;
     tenantId: string;
-    membershipId: string | null;
-    category: "SUPERADMIN" | "ADMIN" | "USER" | "PROFESSIONAL" | null;
+    membershipId: string;
+    category: MembershipCategory;
     permissions: Set<string>;
 };
 
-const TEN_MIN = 10 * 60 * 1000;     // para throttling writes
-const IDLE_LIMIT = 30 * 60 * 1000;  // 30 minutos inactividad (ajusta si quieres)
+export type AuthFailReason =
+    | "missing"
+    | "invalid"
+    | "revoked"
+    | "expired"
+    | "idle"
+    | "tenant_inactive"
+    | "host_mismatch"
+    | "user_inactive"
+    | "membership_inactive";
 
-export async function getAuthStatus() {
+type AuthOk = {
+    ok: true;
+    tokenHash: string;
+    session: {
+        userId: string;
+        tenantId: string;
+        expiresAt: Date;
+        revokedAt: Date | null;
+        lastSeenAt: Date | null;
+    };
+    tenant: { id: string; slug: string; status: TenantStatus; deletedAt: Date | null };
+    user: { id: string; isActive: boolean };
+    membership: { id: string; category: MembershipCategory; isActive: boolean };
+};
+
+type AuthFail = { ok: false; reason: AuthFailReason };
+
+async function logAuthEvent(params: {
+    type: AuthEventType;
+    tenantId?: string | null;
+    userId?: string | null;
+    success: boolean;
+    message?: string | null;
+    metadata?: any;
+}) {
+    try {
+        await prisma.authEvent.create({
+            data: {
+                tenantId: params.tenantId ?? null,
+                userId: params.userId ?? null,
+                type: params.type,
+                success: params.success,
+                message: params.message ?? null,
+                metadata: params.metadata ?? undefined,
+            },
+            select: { id: true },
+        });
+    } catch {
+        // no-op (no rompas auth por logging)
+    }
+}
+
+async function revokeSessionByHash(hash: string) {
+    await prisma.session.updateMany({
+        where: { tokenHash: hash, revokedAt: null },
+        data: { revokedAt: new Date() },
+    });
+}
+
+async function validateSessionCore(): Promise<AuthOk | AuthFail> {
     const jar = await cookies();
     const token = jar.get(COOKIE_NAME)?.value;
 
-    if (!token) {
-        return { ok: false as const, reason: "missing" as const };
-    }
+    if (!token) return { ok: false, reason: "missing" };
 
     const hash = tokenHash(token);
 
@@ -55,70 +141,123 @@ export async function getAuthStatus() {
         },
     });
 
-    if (!session) {
-        return { ok: false as const, reason: "invalid" as const };
-    }
-
-    // 🔴 Revocada manualmente (logout o login en otro navegador)
-    if (session.revokedAt) {
-        return { ok: false as const, reason: "revoked" as const };
-    }
+    if (!session) return { ok: false, reason: "invalid" };
+    if (session.revokedAt) return { ok: false, reason: "revoked" };
 
     const now = Date.now();
 
-    // 🔴 Expirada por tiempo absoluto
+    // absolute expiry
     if (session.expiresAt.getTime() <= now) {
-        await prisma.session.updateMany({
-            where: { tokenHash: hash, revokedAt: null },
-            data: { revokedAt: new Date() },
+        await revokeSessionByHash(hash);
+
+        await logAuthEvent({
+            tenantId: session.tenantId,
+            userId: session.userId,
+            type: "SESSION_EXPIRED",
+            success: true,
+            message: "Session expired",
+            metadata: { expiresAt: session.expiresAt },
         });
 
-        return { ok: false as const, reason: "expired" as const };
+        return { ok: false, reason: "expired" };
     }
 
-    // 🔴 Idle timeout
-    if (
-        session.lastSeenAt &&
-        now - session.lastSeenAt.getTime() > IDLE_LIMIT
-    ) {
-        await prisma.session.updateMany({
-            where: { tokenHash: hash, revokedAt: null },
-            data: { revokedAt: new Date() },
+    // idle timeout
+    if (session.lastSeenAt && now - session.lastSeenAt.getTime() > IDLE_LIMIT) {
+        await revokeSessionByHash(hash);
+
+        await logAuthEvent({
+            tenantId: session.tenantId,
+            userId: session.userId,
+            type: "SESSION_IDLE_TIMEOUT",
+            success: true,
+            message: "Session revoked due to inactivity",
+            metadata: { lastSeenAt: session.lastSeenAt },
         });
 
-        await prisma.authEvent.create({
-            data: {
-                tenantId: session.tenantId,
-                userId: session.userId,
-                type: "SESSION_IDLE_TIMEOUT",
-                success: true,
-                message: "Session revoked due to inactivity",
-            },
-            select: { id: true },
-        });
-
-        return { ok: false as const, reason: "expired" as const };
+        return { ok: false, reason: "idle" };
     }
 
-    // 🔐 Validar tenant vs host (subdominio)
-    const h = await headers();
-    const host = h.get("host") ?? "";
-    const sub = host.split(".")[0];
-
+    // tenant status + deletedAt
     const tenant = await prisma.tenant.findUnique({
         where: { id: session.tenantId },
-        select: { slug: true },
+        select: { id: true, slug: true, status: true, deletedAt: true },
     });
 
-    if (!tenant || tenant.slug !== sub) {
-        return { ok: false as const, reason: "invalid" as const };
+    if (!tenant) return { ok: false, reason: "invalid" };
+
+    if (tenant.deletedAt || tenant.status !== "ACTIVE") {
+        await logAuthEvent({
+            tenantId: tenant.id,
+            userId: session.userId,
+            type: "LOGIN_FAILED",
+            success: false,
+            message: "Tenant inactive",
+            metadata: { status: tenant.status, deletedAt: tenant.deletedAt },
+        });
+
+        return { ok: false, reason: "tenant_inactive" };
     }
 
-    // 🧠 Throttle lastSeenAt (solo cada 10 min)
-    if (
-        !session.lastSeenAt ||
-        now - session.lastSeenAt.getTime() > TEN_MIN
-    ) {
+    // host <-> tenant slug check (subdominio)
+    if (!ALLOW_HOST_BYPASS) {
+        const h = await headers();
+        const host = h.get("host") ?? "";
+        const sub = getSubdomainFromHost(host);
+
+        if (!sub || sub !== tenant.slug) {
+            await logAuthEvent({
+                tenantId: tenant.id,
+                userId: session.userId,
+                type: "LOGIN_FAILED",
+                success: false,
+                message: "Host/tenant mismatch",
+                metadata: { host, expectedSlug: tenant.slug, got: sub },
+            });
+
+            return { ok: false, reason: "host_mismatch" };
+        }
+    }
+
+    // user isActive
+    const user = await prisma.user.findUnique({
+        where: { id: session.userId },
+        select: { id: true, isActive: true },
+    });
+
+    if (!user || !user.isActive) {
+        await logAuthEvent({
+            tenantId: tenant.id,
+            userId: session.userId,
+            type: "LOGIN_FAILED",
+            success: false,
+            message: "User inactive",
+        });
+
+        return { ok: false, reason: "user_inactive" };
+    }
+
+    // membership isActive
+    const membership = await prisma.tenantMembership.findUnique({
+        where: { tenantId_userId: { tenantId: tenant.id, userId: user.id } },
+        select: { id: true, category: true, isActive: true },
+    });
+
+    if (!membership || !membership.isActive) {
+        await logAuthEvent({
+            tenantId: tenant.id,
+            userId: user.id,
+            type: "LOGIN_FAILED",
+            success: false,
+            message: "Membership inactive",
+            metadata: { membershipFound: !!membership, membershipActive: membership?.isActive ?? null },
+        });
+
+        return { ok: false, reason: "membership_inactive" };
+    }
+
+    // throttle lastSeenAt touch
+    if (!session.lastSeenAt || now - session.lastSeenAt.getTime() > TEN_MIN) {
         await prisma.session.update({
             where: { tokenHash: hash },
             data: { lastSeenAt: new Date() },
@@ -127,11 +266,66 @@ export async function getAuthStatus() {
     }
 
     return {
-        ok: true as const,
+        ok: true,
+        tokenHash: hash,
         session,
+        tenant,
+        user,
+        membership,
     };
 }
 
+/**
+ * getAuthStatus()
+ * - Para middleware/guards rápidos: devuelve ok + reason
+ */
+export async function getAuthStatus(): Promise<
+    | { ok: true; session: { userId: string; tenantId: string; expiresAt: Date; revokedAt: Date | null; lastSeenAt: Date | null } }
+    | { ok: false; reason: AuthFailReason }
+> {
+    const res = await validateSessionCore();
+    if (!res.ok) return res;
+    return { ok: true, session: res.session };
+}
+
+/**
+ * getAuthContext()
+ * - Para autorización: devuelve user/tenant/membership + permisos
+ * - Si no pasa validación, devuelve null (usa getAuthStatus si necesitas reason)
+ */
+export async function getAuthContext(_req?: NextRequest): Promise<AuthContext | null> {
+    const res = await validateSessionCore();
+    if (!res.ok) return null;
+
+    const rolePerms = await prisma.membershipRole.findMany({
+        where: { membershipId: res.membership.id },
+        select: {
+            role: {
+                select: {
+                    permissions: { select: { permission: { select: { key: true } } } },
+                },
+            },
+        },
+    });
+
+    const permissions = new Set<string>();
+    for (const mr of rolePerms) {
+        for (const rp of mr.role.permissions) permissions.add(rp.permission.key);
+    }
+
+    return {
+        userId: res.user.id,
+        tenantId: res.tenant.id,
+        membershipId: res.membership.id,
+        category: res.membership.category,
+        permissions,
+    };
+}
+
+/**
+ * createSession()
+ * - Crea session y setea cookie httpOnly
+ */
 export async function createSession(params: {
     userId: string;
     tenantId: string;
@@ -158,19 +352,31 @@ export async function createSession(params: {
         select: { id: true },
     });
 
-    // cookie httpOnly
     const jar = await cookies();
     jar.set(COOKIE_NAME, token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
         path: "/",
-        expires: expiresAt, // persistente
+        expires: expiresAt,
+    });
+
+    await logAuthEvent({
+        tenantId: params.tenantId,
+        userId: params.userId,
+        type: "LOGIN_SUCCESS",
+        success: true,
+        message: "Session created",
+        metadata: { remember: params.remember, expiresAt },
     });
 
     return { expiresAt };
 }
 
+/**
+ * revokeCurrentSession()
+ * - Revoca la session y elimina cookie
+ */
 export async function revokeCurrentSession() {
     const jar = await cookies();
     const token = jar.get(COOKIE_NAME)?.value;
@@ -179,160 +385,41 @@ export async function revokeCurrentSession() {
 
     const hash = tokenHash(token);
 
-    await prisma.session.updateMany({
-        where: {
-            tokenHash: hash,
-            revokedAt: null,
-        },
-        data: {
-            revokedAt: new Date(),
-        },
+    // best-effort: get session for logging
+    const s = await prisma.session.findUnique({
+        where: { tokenHash: hash },
+        select: { userId: true, tenantId: true },
+    });
+
+    await revokeSessionByHash(hash);
+
+    await logAuthEvent({
+        tenantId: s?.tenantId ?? null,
+        userId: s?.userId ?? null,
+        type: "LOGOUT",
+        success: true,
+        message: "Session revoked by user",
     });
 
     jar.delete(COOKIE_NAME);
 }
 
-export async function getAuthContext(req?: NextRequest): Promise<AuthContext | null> {
-    const jar = await cookies();
-    const token = jar.get(COOKIE_NAME)?.value;
-    if (!token) return null;
-
-    const hash = tokenHash(token);
-
-    // 1) Session válida
-    const session = await prisma.session.findUnique({
-        where: { tokenHash: hash },
-        select: {
-            userId: true,
-            tenantId: true,
-            expiresAt: true,
-            revokedAt: true,
-            lastSeenAt: true,
-        },
-    });
-
-    if (!session) return null;
-    if (session.revokedAt) return null;
-    if (session.expiresAt.getTime() <= Date.now()) {
-        const upd = await prisma.session.updateMany({
-            where: { tokenHash: hash, revokedAt: null },
-            data: { revokedAt: new Date() },
-        });
-
-        if (upd.count > 0) {
-            await prisma.authEvent.create({
-                data: {
-                    tenantId: session.tenantId,
-                    userId: session.userId,
-                    type: "SESSION_EXPIRED",
-                    success: true,
-                    message: "Session expired",
-                    metadata: { expiresAt: session.expiresAt },
-                },
-                select: { id: true },
-            });
-        }
-
-        return null; // ✅ SIEMPRE
-    }
-
-    // 2) Validate tentat
-    // 🔐 VALIDAR TENANT VS HOST
-    const h = await headers();
-    const host = h.get("host") ?? "";
-    const sub = host.split(".")[0];
-
-    const tenant = await prisma.tenant.findUnique({
-        where: { id: session.tenantId },
-        select: { slug: true },
-    });
-
-    if (!tenant) return null;
-
-    if (sub !== tenant.slug) {
-        // alguien intentó usar cookie en otro subdominio
-        return null;
-    }
-
-    // 2) lastSeen + refresh window
-    const now = Date.now();
-    const TEN_MIN = 10 * 60 * 1000;
-    const SIX_HOURS = 6 * 60 * 60 * 1000;
-
-    // refresh window: si expira pronto, extiende 1 día (o lo que uses)
-    const extendMs = 24 * 60 * 60 * 1000;
-
-    const shouldTouchLastSeen =
-        !session.lastSeenAt || (now - session.lastSeenAt.getTime() > TEN_MIN);
-
-    const expiresSoon =
-        (session.expiresAt.getTime() - now) < SIX_HOURS;
-
-    if (shouldTouchLastSeen || expiresSoon) {
-        await prisma.session.update({
-            where: { tokenHash: hash },
-            data: {
-                lastSeenAt: new Date(),
-                ...(expiresSoon ? { expiresAt: new Date(now + extendMs) } : {}),
-            },
-            select: { id: true },
-        });
-    }
-
-    // 3) Membership + category
-    const membership = await prisma.tenantMembership.findUnique({
-        where: { tenantId_userId: { tenantId: session.tenantId, userId: session.userId } },
-        select: { id: true, category: true, isActive: true },
-    });
-
-    if (!membership?.isActive) {
-        // sesión existe pero ya no tiene acceso al tenant
-        return {
-            userId: session.userId,
-            tenantId: session.tenantId,
-            membershipId: null,
-            category: null,
-            permissions: new Set(),
-        };
-    }
-
-    // 4) Permisos por roles (RBAC)
-    const rolePerms = await prisma.membershipRole.findMany({
-        where: { membershipId: membership.id },
-        select: {
-            role: {
-                select: {
-                    permissions: { select: { permission: { select: { key: true } } } },
-                },
-            },
-        },
-    });
-
-    const permissions = new Set<string>();
-    for (const mr of rolePerms) {
-        for (const rp of mr.role.permissions) permissions.add(rp.permission.key);
-    }
-
-    return {
-        userId: session.userId,
-        tenantId: session.tenantId,
-        membershipId: membership.id,
-        category: membership.category,
-        permissions,
-    };
-}
-
-// Útil para login: resuelve tenant por slug
+/**
+ * resolveTenantIdFromRequest()
+ * - Útil para login (usa el slug del request)
+ */
 export async function resolveTenantIdFromRequest(req: NextRequest) {
     const slug = resolveTenantSlugFromRequest(req);
-
     if (!slug) return null;
 
     const tenant = await prisma.tenant.findUnique({
         where: { slug },
-        select: { id: true, slug: true, status: true },
+        select: { id: true, slug: true, status: true, deletedAt: true },
     });
 
-    if (!tenant || tenant.status !== "ACTIVE") return null;
+    if (!tenant) return null;
+    if (tenant.deletedAt) return null;
+    if (tenant.status !== "ACTIVE") return null;
+
     return tenant.id;
 }

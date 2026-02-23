@@ -7,6 +7,7 @@ import { FaArrowLeft } from "react-icons/fa";
 import { loginSchema, type LoginInput } from "@/lib/zod/auth";
 import type { z } from "zod";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 type FieldErrors = Partial<Record<keyof LoginInput, string>>;
 
@@ -15,13 +16,35 @@ function zodFieldErrors(err: z.ZodError): FieldErrors {
     for (const issue of err.issues) {
         const key = issue.path?.[0] as keyof LoginInput | undefined;
         if (!key) continue;
-        // solo tomamos el primero por campo
         if (!out[key]) out[key] = issue.message;
     }
     return out;
 }
 
+/**
+ * Previene open-redirect:
+ * - solo permite paths internos tipo "/dashboard" o "/t/demo/dashboard"
+ * - bloquea "//evil.com" y "http(s)://..."
+ */
+function sanitizeNext(next: string | null): string | null {
+    if (!next) return null;
+    const v = next.trim();
+    if (!v) return null;
+
+    // Debe ser relativo interno
+    if (!v.startsWith("/")) return null;
+    if (v.startsWith("//")) return null;
+
+    // opcional: evita rutas raras
+    // if (v.includes("\n") || v.includes("\r")) return null;
+
+    return v;
+}
+
 export const FormLogin = () => {
+    const sp = useSearchParams();
+    const safeNext = useMemo(() => sanitizeNext(sp.get("next")), [sp]);
+
     const [values, setValues] = useState<LoginInput>({
         email: "",
         password: "",
@@ -51,7 +74,6 @@ export const FormLogin = () => {
     }
 
     function validateField<K extends keyof LoginInput>(key: K, next: LoginInput) {
-        // Validación por campo: valida todo, pero muestra solo ese campo (y respeta el schema)
         const parsed = loginSchema.safeParse(next);
         if (parsed.success) {
             setErrors((prev) => ({ ...prev, [key]: undefined }));
@@ -73,7 +95,6 @@ export const FormLogin = () => {
 
                 setValues(next);
 
-                // si ya fue tocado, validamos mientras escribe
                 if (touched[key]) validateField(key, next);
             };
 
@@ -88,7 +109,6 @@ export const FormLogin = () => {
         e.preventDefault();
         setFormError(null);
 
-        // marcar todo como touched
         setTouched({ email: true, password: true, remember: true });
 
         const parsed = validateAll(values);
@@ -99,13 +119,13 @@ export const FormLogin = () => {
 
             const response = await fetch("/api/auth/login", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     email: values.email.trim().toLowerCase(),
                     password: values.password,
                     remember: values.remember,
+                    // opcional: el backend puede usarlo si quiere
+                    next: safeNext,
                 }),
             });
 
@@ -116,10 +136,13 @@ export const FormLogin = () => {
                 return;
             }
 
-            // 👇 ya estamos en subdominio correcto
-            window.location.href = data.redirectTo ?? "/dashboard";
-
-        } catch (err: any) {
+            // Prioridad:
+            // 1) redirectTo devuelto por backend (si ya resuelve subdominio correcto)
+            // 2) safeNext (si venía en login?next=...)
+            // 3) /dashboard
+            const target = sanitizeNext(data.redirectTo ?? null) ?? safeNext ?? "/dashboard";
+            window.location.href = target;
+        } catch {
             setFormError("Network error. Please try again.");
         } finally {
             setIsAuthing(false);
@@ -131,7 +154,6 @@ export const FormLogin = () => {
 
     const canSubmit =
         !isAuthing &&
-        // botón solo habilitado si tiene algo y no hay errores visibles en campos críticos
         values.email.trim().length > 0 &&
         values.password.length > 0 &&
         !errors.email &&
@@ -148,10 +170,7 @@ export const FormLogin = () => {
 
             {/* EMAIL */}
             <div>
-                <label
-                    className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2"
-                    htmlFor="email"
-                >
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2" htmlFor="email">
                     Email Address
                 </label>
 
@@ -185,9 +204,7 @@ export const FormLogin = () => {
                             {emailError}
                         </p>
                     ) : (
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                            Use the email you registered with.
-                        </p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Use the email you registered with.</p>
                     )}
                 </div>
             </div>
@@ -238,9 +255,7 @@ export const FormLogin = () => {
                         disabled={isAuthing}
                         aria-label={showPassword ? "Hide password" : "Show password"}
                     >
-                        <span className="material-symbols-outlined text-lg">
-                            {showPassword ? "visibility_off" : "visibility"}
-                        </span>
+                        <span className="material-symbols-outlined text-lg">{showPassword ? "visibility_off" : "visibility"}</span>
                     </button>
                 </div>
 
@@ -250,9 +265,7 @@ export const FormLogin = () => {
                             {passwordError}
                         </p>
                     ) : (
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                            Minimum 8 characters.
-                        </p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Minimum 8 characters.</p>
                     )}
                 </div>
             </div>
@@ -293,22 +306,16 @@ export const FormLogin = () => {
                 </span>
             </button>
 
-            {/* Helper UX: aviso si no hay cambios */}
-            {!isDirty && (
-                <p className="text-center text-xs text-slate-500 dark:text-slate-400">
-                    Enter your credentials to continue.
-                </p>
-            )}
+            {!isDirty && <p className="text-center text-xs text-slate-500 dark:text-slate-400">Enter your credentials to continue.</p>}
 
             <div className="px-8 py-5 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <Link href={"/tenant"} className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-primary dark:hover:text-primary transition-colors flex items-center gap-1.5 cursor-pointer">
+                <Link
+                    href={"/tenant"}
+                    className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-primary dark:hover:text-primary transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
                     <FaArrowLeft size={16} className="text-lg" />
                     Back to Search Tenant
                 </Link>
-                {/* <div className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400">
-                    <span>Can't find it?</span>
-                    <a className="font-semibold text-primary hover:underline" href="#">Contact Support</a>
-                </div> */}
             </div>
         </form>
     );

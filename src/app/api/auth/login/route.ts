@@ -6,32 +6,46 @@ import { createSession, resolveTenantIdFromRequest } from "@/lib/auth/session";
 export const runtime = "nodejs";
 
 export function getClientIp(req: NextRequest) {
-    // Cloudflare
     const cf = req.headers.get("cf-connecting-ip");
     if (cf) return cf.trim();
 
-    // Otros proxies
     const realIp = req.headers.get("x-real-ip");
     if (realIp) return realIp.trim();
 
-    // Vercel / estándar
     const fwd = req.headers.get("x-forwarded-for");
     if (fwd) {
-        // puede venir lista "ip1, ip2, ip3"
         const first = fwd.split(",")[0]?.trim();
         if (first) return first;
     }
 
-    // fallback dev
     return null;
 }
 
 function normalizeIp(ip: string | null) {
     if (!ip) return null;
     if (ip === "::1") return "127.0.0.1";
-    // IPv6 mapped IPv4: ::ffff:192.168.0.10
     if (ip.startsWith("::ffff:")) return ip.replace("::ffff:", "");
     return ip;
+}
+
+/**
+ * Only allow internal relative paths:
+ * - must start with "/"
+ * - must NOT start with "//"
+ * - must NOT include protocol
+ */
+function sanitizeNext(next: unknown): string | null {
+    if (typeof next !== "string") return null;
+    const v = next.trim();
+    if (!v) return null;
+
+    if (!v.startsWith("/")) return null;
+    if (v.startsWith("//")) return null;
+
+    // block obvious protocol injections like "/\https://..."
+    if (v.toLowerCase().includes("http://") || v.toLowerCase().includes("https://")) return null;
+
+    return v;
 }
 
 export async function POST(req: NextRequest) {
@@ -43,6 +57,9 @@ export async function POST(req: NextRequest) {
     const email = String(body?.email ?? "").trim().toLowerCase();
     const password = String(body?.password ?? "");
     const remember = Boolean(body?.remember ?? false);
+
+    // 👇 nuevo
+    const safeNext = sanitizeNext(body?.next) ?? "/dashboard";
 
     // 1) Validación básica
     if (!email || !password) {
@@ -62,7 +79,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: false, message: "Missing credentials" }, { status: 400 });
     }
 
-    // 2) Resolver tenant por host/subdominio
+    // 2) Resolver tenant por host/subdominio (y status ACTIVE si tu resolve ya lo valida)
     const tenantId = await resolveTenantIdFromRequest(req);
     if (!tenantId) {
         await prisma.authEvent.create({
@@ -81,13 +98,13 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: false, message: "Invalid tenant" }, { status: 400 });
     }
 
-    // 3) Buscar usuario
+    // 3) Buscar usuario (OJO: tu schema usa emailNormalized)
+    // Si ya normalizas en DB, mejor usar emailNormalized.
     const user = await prisma.user.findUnique({
-        where: { email },
+        where: { emailNormalized: email },
         select: { id: true, passwordHash: true, isActive: true },
     });
 
-    // No revelar si el usuario existe o no
     if (!user || !user.isActive) {
         await prisma.authEvent.create({
             data: {
@@ -152,7 +169,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: false, message: "No access to tenant" }, { status: 403 });
     }
 
-    // ✅ 6) SINGLE SESSION: revocar sesiones activas previas (user+tenant)
+    // 6) SINGLE SESSION: revocar sesiones activas previas (user+tenant)
     const revokeResult = await prisma.session.updateMany({
         where: {
             userId: user.id,
@@ -189,21 +206,7 @@ export async function POST(req: NextRequest) {
         userAgent,
     });
 
-    // 8) Log login success
-    await prisma.authEvent.create({
-        data: {
-            tenantId,
-            userId: user.id,
-            type: "LOGIN_SUCCESS",
-            success: true,
-            message: "Login success",
-            ip,
-            userAgent,
-            host,
-            metadata: { remember },
-        },
-        select: { id: true },
-    });
-
-    return NextResponse.json({ ok: true, redirectTo: "/dashboard" });
+    // ✅ 8) redirect final: usa next seguro
+    // Nota: si createSession() YA loguea LOGIN_SUCCESS, no dupliques aquí.
+    return NextResponse.json({ ok: true, redirectTo: safeNext });
 }

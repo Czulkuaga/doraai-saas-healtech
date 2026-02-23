@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { FaArrowRight } from "react-icons/fa";
+import { FaArrowRight, FaSearch } from "react-icons/fa";
 import { z } from "zod";
 import { tenantSchema, type TenantInput } from "@/lib/zod/tenant";
 import { slugifyTenant } from "@/lib/slug";
+import { useSearchParams } from "next/navigation";
+import { IoClose } from "react-icons/io5";
 
 type FieldErrors = Partial<Record<keyof TenantInput, string>>;
 
@@ -18,12 +20,48 @@ function zodFieldErrors(err: z.ZodError): FieldErrors {
     return out;
 }
 
-type TenantOption = { slug: string; name: string };
+type TenantOption = { slug: string; name: string; status: "ACTIVE" | "SUSPENDED" | "DELETED" };
 
 type ResolveResponse =
     | { ok: true; slug: string; name?: string }
     | { ok: true; options: TenantOption[] }
-    | { ok: false; message: string };
+    | { ok: false; message: string; code?: string };
+
+function sanitizeNext(next: string | null): string | null {
+    if (!next) return null;
+    const v = next.trim();
+    if (!v) return null;
+    if (!v.startsWith("/")) return null;
+    if (v.startsWith("//")) return null;
+    return v;
+}
+
+function StatusBadge({ status }: { status: "ACTIVE" | "SUSPENDED" | "DELETED" }) {
+    const base =
+        "inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-bold tracking-wide";
+
+    if (status === "ACTIVE") {
+        return (
+            <span className={`${base} border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300`}>
+                ACTIVE
+            </span>
+        );
+    }
+
+    if (status === "SUSPENDED") {
+        return (
+            <span className={`${base} border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300`}>
+                SUSPENDED
+            </span>
+        );
+    }
+
+    return (
+        <span className={`${base} border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300`}>
+            DELETED
+        </span>
+    );
+}
 
 function TenantPickerModal(props: {
     open: boolean;
@@ -48,40 +86,27 @@ function TenantPickerModal(props: {
 
     const filtered = useMemo(() => {
         const needle = q.trim().toLowerCase();
-        if (!needle) return options;
-        return options.filter((o) => {
-            return (
-                o.name.toLowerCase().includes(needle) ||
-                o.slug.toLowerCase().includes(needle)
-            );
-        });
+        const list = !needle
+            ? options
+            : options.filter((o) => o.name.toLowerCase().includes(needle) || o.slug.toLowerCase().includes(needle));
+
+        // ACTIVE primero
+        return [...list].sort((a, b) => (a.status === b.status ? 0 : a.status === "ACTIVE" ? -1 : 1));
     }, [q, options]);
 
     if (!open) return null;
 
     return (
-        <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Select your clinic"
-        >
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Select your clinic">
             {/* overlay */}
-            <button
-                type="button"
-                className="absolute inset-0 bg-slate-900/50 backdrop-blur-[2px]"
-                onClick={onClose}
-                aria-label="Close"
-            />
+            <button type="button" className="absolute inset-0 bg-slate-900/50 backdrop-blur-[2px]" onClick={onClose} aria-label="Close" />
 
             {/* modal */}
             <div className="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-950">
                 <div className="p-5 border-b border-slate-200 dark:border-slate-800">
                     <div className="flex items-start justify-between gap-4">
                         <div>
-                            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                                Select your clinic
-                            </h3>
+                            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Select your clinic</h3>
                             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                                 We found multiple clinics. Choose the correct one to continue.
                             </p>
@@ -92,16 +117,14 @@ function TenantPickerModal(props: {
                             onClick={onClose}
                             className="rounded-lg px-2 py-1 text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-900"
                         >
-                            <span className="material-symbols-outlined text-lg">close</span>
+                            <IoClose size={20} className="text-slate-400" />
                         </button>
                     </div>
 
                     {/* search */}
                     <div className="mt-4">
                         <div className="relative">
-                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">
-                                search
-                            </span>
+                            <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                             <input
                                 autoFocus
                                 value={q}
@@ -114,49 +137,64 @@ function TenantPickerModal(props: {
                 </div>
 
                 <div className="p-3 max-h-90 overflow-auto">
-                    {filtered.length === 0 ? (
-                        <div className="p-6 text-center text-sm text-slate-500 dark:text-slate-400">
-                            No results. Try a different search.
-                        </div>
-                    ) : (
-                        <ul className="space-y-2">
-                            {filtered.map((o) => (
-                                <li key={o.slug}>
-                                    <button
-                                        type="button"
-                                        onClick={() => onSelect(o.slug)}
-                                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-left hover:bg-slate-50 hover:border-slate-300 transition dark:border-slate-800 dark:bg-slate-950 dark:hover:bg-slate-900"
-                                    >
-                                        <div className="flex items-center justify-between gap-3">
-                                            <div>
-                                                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    {filtered.map((o) => {
+                        const disabled = o.status !== "ACTIVE";
+
+                        return (
+                            <li key={o.slug}>
+                                <button
+                                    type="button"
+                                    onClick={() => !disabled && onSelect(o.slug)}
+                                    disabled={disabled}
+                                    className={[
+                                        "w-full rounded-xl border px-4 py-3 text-left transition",
+                                        "border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300",
+                                        "dark:border-slate-800 dark:bg-slate-950 dark:hover:bg-slate-900",
+                                        disabled
+                                            ? "opacity-60 cursor-not-allowed hover:bg-white hover:border-slate-200 dark:hover:bg-slate-950 dark:hover:border-slate-800"
+                                            : "",
+                                    ].join(" ")}
+                                    aria-disabled={disabled}
+                                    title={
+                                        disabled
+                                            ? o.status === "SUSPENDED"
+                                                ? "This clinic is suspended. Contact support."
+                                                : "This clinic is deleted and unavailable."
+                                            : "Continue"
+                                    }
+                                >
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
                                                     {o.name}
                                                 </div>
-                                                <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                                                    {o.slug}.{domain}
-                                                </div>
+                                                <StatusBadge status={o.status} />
                                             </div>
 
-                                            <span className="material-symbols-outlined text-slate-400">
-                                                chevron_right
-                                            </span>
+                                            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400 truncate">
+                                                {o.slug}.{domain}
+                                                {disabled && (
+                                                    <span className="ml-2 text-[11px] font-semibold text-slate-400 dark:text-slate-500">
+                                                        {o.status === "SUSPENDED" ? "Contact support" : "Unavailable"}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
-                                    </button>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
+
+                                        <span className={`material-symbols-outlined ${disabled ? "text-slate-300 dark:text-slate-700" : "text-slate-400"}`}>
+                                            chevron_right
+                                        </span>
+                                    </div>
+                                </button>
+                            </li>
+                        );
+                    })}
                 </div>
 
                 <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Tip: You can type the workspace URL too (slug).
-                    </p>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900"
-                    >
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Tip: You can type the workspace URL too (slug).</p>
+                    <button type="button" onClick={onClose} className="rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">
                         Cancel
                     </button>
                 </div>
@@ -167,6 +205,12 @@ function TenantPickerModal(props: {
 
 export const FormTenant = () => {
     const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "medicloud.com";
+    // opcional, si quieres forzar:
+    // "auto" | "subdomain" | "path"
+    // const TENANT_MODE = (process.env.NEXT_PUBLIC_TENANT_MODE ?? "auto") as "auto" | "subdomain" | "path";
+
+    const sp = useSearchParams();
+    const nextPath = useMemo(() => sanitizeNext(sp.get("next")), [sp]);
 
     const [values, setValues] = useState<TenantInput>({ workspace: "" });
     const [touched, setTouched] = useState<Partial<Record<keyof TenantInput, boolean>>>({});
@@ -175,7 +219,6 @@ export const FormTenant = () => {
 
     const [isResolving, setIsResolving] = useState(false);
 
-    // modal state
     const [pickerOpen, setPickerOpen] = useState(false);
     const [pickerOptions, setPickerOptions] = useState<TenantOption[]>([]);
 
@@ -203,7 +246,14 @@ export const FormTenant = () => {
     }
 
     function goToTenant(slug: string) {
-        const url = ROOT_DOMAIN === "localhost:3000" ? `http://${slug}.${ROOT_DOMAIN}/login` : `https://${slug}.${ROOT_DOMAIN}/login`;
+        // ROOT_DOMAIN="localhost:3000" → http
+        // ROOT_DOMAIN="medicloud.com"  → https (prod)
+        const isLocal = ROOT_DOMAIN.includes("localhost");
+        const protocol = isLocal ? "http" : "https";
+
+        const base = `${protocol}://${slug}.${ROOT_DOMAIN}/login`;
+        const url = nextPath ? `${base}?next=${encodeURIComponent(nextPath)}` : base;
+
         window.location.assign(url);
     }
 
@@ -242,6 +292,14 @@ export const FormTenant = () => {
             const data = (await r.json()) as ResolveResponse;
 
             if (!r.ok || !data.ok) {
+                if (!data.ok && data.code === "TENANT_SUSPENDED") {
+                    setFormError("This clinic is suspended. Please contact support.");
+                    return;
+                }
+                if (!data.ok && data.code === "TENANT_DELETED") {
+                    setFormError("This clinic was deleted and is no longer available.");
+                    return;
+                }
                 setFormError(!data.ok ? data.message : "Could not resolve clinic.");
                 return;
             }
@@ -252,7 +310,6 @@ export const FormTenant = () => {
                 return;
             }
 
-            // single tenant
             goToTenant(data.slug);
         } catch {
             setFormError("Network error. Please try again.");
@@ -320,11 +377,15 @@ export const FormTenant = () => {
 
                         <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                             Preview:{" "}
-                            <span className="font-semibold text-slate-700 dark:text-slate-200">
-                                {previewSlug || "—"}
-                            </span>
-                            .{ROOT_DOMAIN}
+                            <span className="font-semibold text-slate-700 dark:text-slate-200">{previewSlug || "—"}</span>.{ROOT_DOMAIN}
                         </div>
+
+                        {nextPath && (
+                            <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                                Continue to:{" "}
+                                <span className="font-semibold text-slate-700 dark:text-slate-200">{nextPath}</span>
+                            </div>
+                        )}
 
                         <div className="mt-2 min-h-4.5">
                             {workspaceError ? (
@@ -332,10 +393,7 @@ export const FormTenant = () => {
                                     {workspaceError}
                                 </p>
                             ) : (
-                                <p
-                                    id="workspace-help"
-                                    className="text-xs text-slate-500 dark:text-slate-500 flex items-center gap-1.5"
-                                >
+                                <p id="workspace-help" className="text-xs text-slate-500 dark:text-slate-500 flex items-center gap-1.5">
                                     <span className="material-symbols-outlined text-sm">info</span>
                                     Hint: type the clinic name; we’ll show options if multiple match.
                                 </p>
@@ -353,9 +411,7 @@ export const FormTenant = () => {
                     disabled={!canSubmit}
                 >
                     <span className="inline-flex items-center gap-2">
-                        {isResolving && (
-                            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-[#102220]/30 border-t-[#102220]" />
-                        )}
+                        {isResolving && <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-[#102220]/30 border-t-[#102220]" />}
                         {isResolving ? "Checking workspace..." : "Continue"}
                     </span>
                     <FaArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
