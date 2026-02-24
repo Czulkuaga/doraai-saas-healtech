@@ -93,6 +93,9 @@ type AuthFail = { ok: false; reason: AuthFailReason };
 async function logAuthEvent(params: {
     type: AuthEventType;
     tenantId?: string | null;
+    ip?: string | null;
+    userAgent?: string | null;
+    host?: string | null;
     userId?: string | null;
     success: boolean;
     message?: string | null;
@@ -100,16 +103,19 @@ async function logAuthEvent(params: {
 }) {
     try {
         await prisma.authEvent.create({
-            data: {
-                tenantId: params.tenantId ?? null,
-                userId: params.userId ?? null,
-                type: params.type,
-                success: params.success,
-                message: params.message ?? null,
-                metadata: params.metadata ?? undefined,
-            },
-            select: { id: true },
-        });
+        data: {
+            tenantId: params.tenantId ?? null,
+            userId: params.userId ?? null,
+            type: params.type,
+            success: params.success,
+            message: params.message ?? null,
+            ip: params.ip ?? null,
+            userAgent: params.userAgent ?? null,
+            host: params.host ?? null,
+            metadata: params.metadata ?? undefined,
+        },
+        select: { id: true },
+    });
     } catch {
         // no-op (no rompas auth por logging)
     }
@@ -332,6 +338,7 @@ export async function createSession(params: {
     remember: boolean;
     ip?: string | null;
     userAgent?: string | null;
+    host?: string | null;
 }) {
     const token = newToken();
     const hash = tokenHash(token);
@@ -364,6 +371,9 @@ export async function createSession(params: {
     await logAuthEvent({
         tenantId: params.tenantId,
         userId: params.userId,
+        ip: params.ip ?? null,
+        userAgent: params.userAgent ?? null,
+        host: params.host ?? null,
         type: "LOGIN_SUCCESS",
         success: true,
         message: "Session created",

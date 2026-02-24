@@ -28,23 +28,13 @@ function normalizeIp(ip: string | null) {
     return ip;
 }
 
-/**
- * Only allow internal relative paths:
- * - must start with "/"
- * - must NOT start with "//"
- * - must NOT include protocol
- */
 function sanitizeNext(next: unknown): string | null {
     if (typeof next !== "string") return null;
     const v = next.trim();
     if (!v) return null;
-
     if (!v.startsWith("/")) return null;
     if (v.startsWith("//")) return null;
-
-    // block obvious protocol injections like "/\https://..."
     if (v.toLowerCase().includes("http://") || v.toLowerCase().includes("https://")) return null;
-
     return v;
 }
 
@@ -58,7 +48,6 @@ export async function POST(req: NextRequest) {
     const password = String(body?.password ?? "");
     const remember = Boolean(body?.remember ?? false);
 
-    // 👇 nuevo
     const safeNext = sanitizeNext(body?.next) ?? "/dashboard";
 
     // 1) Validación básica
@@ -79,7 +68,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: false, message: "Missing credentials" }, { status: 400 });
     }
 
-    // 2) Resolver tenant por host/subdominio (y status ACTIVE si tu resolve ya lo valida)
+    // 2) Resolver tenant por host/subdominio
     const tenantId = await resolveTenantIdFromRequest(req);
     if (!tenantId) {
         await prisma.authEvent.create({
@@ -98,8 +87,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: false, message: "Invalid tenant" }, { status: 400 });
     }
 
-    // 3) Buscar usuario (OJO: tu schema usa emailNormalized)
-    // Si ya normalizas en DB, mejor usar emailNormalized.
+    // 3) Buscar usuario por emailNormalized (como está tu schema)
     const user = await prisma.user.findUnique({
         where: { emailNormalized: email },
         select: { id: true, passwordHash: true, isActive: true },
@@ -169,7 +157,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: false, message: "No access to tenant" }, { status: 403 });
     }
 
-    // 6) SINGLE SESSION: revocar sesiones activas previas (user+tenant)
+    // 6) SINGLE SESSION: revocar sesiones activas previas
     const revokeResult = await prisma.session.updateMany({
         where: {
             userId: user.id,
@@ -197,16 +185,31 @@ export async function POST(req: NextRequest) {
         });
     }
 
-    // 7) Crear nueva sesión + cookie host-only
+    // 7) Crear nueva sesión
     await createSession({
         userId: user.id,
         tenantId,
         remember,
         ip,
         userAgent,
+        host
     });
 
-    // ✅ 8) redirect final: usa next seguro
-    // Nota: si createSession() YA loguea LOGIN_SUCCESS, no dupliques aquí.
+    // ✅ 8) AuthEvent LOGIN_SUCCESS (esto es lo que te faltaba para que no quede NULL)
+    await prisma.authEvent.create({
+        data: {
+            tenantId,
+            userId: user.id,
+            type: "LOGIN_SUCCESS",
+            success: true,
+            message: "Login success",
+            ip,
+            userAgent,
+            host,
+            metadata: { remember, next: safeNext },
+        },
+        select: { id: true },
+    });
+
     return NextResponse.json({ ok: true, redirectTo: safeNext });
 }

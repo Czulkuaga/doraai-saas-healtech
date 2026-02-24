@@ -182,9 +182,7 @@ function TenantPickerModal(props: {
                                             </div>
                                         </div>
 
-                                        <span className={`material-symbols-outlined ${disabled ? "text-slate-300 dark:text-slate-700" : "text-slate-400"}`}>
-                                            chevron_right
-                                        </span>
+                                        <FaArrowRight size={16} className={`${disabled ? "text-slate-300 dark:text-slate-700" : "text-slate-400"}`} />
                                     </div>
                                 </button>
                             </li>
