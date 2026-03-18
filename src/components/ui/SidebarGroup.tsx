@@ -8,7 +8,7 @@ import { useSidebarStore } from "@/store/ui/sidebar-store";
 
 type ChildItem = { key: string; href: string; label: string; icon?: React.ReactNode };
 type Section = { title?: string; items: ChildItem[] };
-type GroupKey = "medicalRecord" | "sessions" | "settings";
+type GroupKey = "medicalRecord" | "sessions" | "settings" | "organization";
 
 export function SidebarGroup({
     groupKey,

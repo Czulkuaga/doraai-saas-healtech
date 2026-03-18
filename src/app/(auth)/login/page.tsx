@@ -1,4 +1,5 @@
 import { FormLogin } from "@/components";
+import { getTenantFromHost } from "@/lib/tenant/getTenantFromHost";
 import { SiBaremetrics } from "react-icons/si";
 
 type LoginSearchParams = {
@@ -92,12 +93,14 @@ export default async function page({
   const sp = await searchParams;
   const reason = sp?.reason;
 
+  const tenant = await getTenantFromHost();
+
   return (
     <section className="bg-[#f6f8f8] dark:bg-[#102220] min-h-screen flex items-center justify-center font-display transition-colors duration-300">
       <div className="flex w-full min-h-screen overflow-hidden">
         <div className="w-full lg:w-1/2 flex flex-col justify-center items-center px-6 md:px-16 lg:px-24 bg-[#f6f8f8] dark:bg-[#102220]">
           <div className="max-w-md w-full">
-            <div className="flex items-center gap-3 mb-10">
+            <div className="flex items-center gap-3 mb-2">
               <div className="bg-[#13ecda] p-2 rounded-lg text-[#102220] shadow-lg shadow-[#13ecda]/20">
                 <svg
                   className="w-8 h-8"
@@ -123,13 +126,24 @@ export default async function page({
                 MediCloud<span className="text-[#13ecda]">.</span>
               </span>
             </div>
+            {tenant && (
+              <div className="mb-6">
+                <p className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Organisation
+                </p>
+
+                <p className="text-lg font-semibold text-slate-900 dark:text-white">
+                  {tenant.name}
+                </p>
+              </div>
+            )}
 
             <div className="mb-8">
               <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
-                Welcome back
+                Bon retour
               </h1>
               <p className="text-slate-500 dark:text-slate-400">
-                Please enter your details to access your clinic dashboard.
+                Veuillez saisir vos informations pour accéder au tableau de bord de votre clinique.
               </p>
             </div>
 
@@ -150,7 +164,7 @@ export default async function page({
             <div className="flex justify-end">
               <span className="px-4 py-2 bg-white/10 backdrop-blur-md rounded-full text-white/80 text-sm font-medium flex items-center gap-2 border border-white/10">
                 <span className="w-2 h-2 bg-[#13ecda] rounded-full animate-pulse"></span>
-                System Online
+                Système en ligne
               </span>
             </div>
 
@@ -160,27 +174,25 @@ export default async function page({
               </div>
 
               <h2 className="text-4xl xl:text-5xl font-bold text-white leading-tight mb-6">
-                Modern Care for <br />
-                <span className="text-[#13ecda] italic">Modern Clinics.</span>
+                Des soins modernes pour des cliniques modernes.<br />
+                <span className="text-[#13ecda] italic">Des cliniques modernes.</span>
               </h2>
 
               <p className="text-lg text-slate-300 leading-relaxed mb-8">
-                Streamline your patient management with our intuitive interface.
-                Access records, schedule appointments, and manage billing from one
-                unified secure portal.
+                Simplifiez la gestion de vos patients grâce à notre interface intuitive. Accédez aux dossiers, planifiez les rendez-vous et gérez la facturation depuis un portail sécurisé unique.
               </p>
 
               <div className="grid grid-cols-2 gap-6">
                 <div className="p-4 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl">
                   <p className="text-[#13ecda] font-bold text-2xl mb-1">99.9%</p>
                   <p className="text-slate-400 text-sm uppercase tracking-wider font-semibold">
-                    Uptime SLA
+                    de disponibilité (SLA)
                   </p>
                 </div>
                 <div className="p-4 bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl">
                   <p className="text-[#13ecda] font-bold text-2xl mb-1">HIPAA</p>
                   <p className="text-slate-400 text-sm uppercase tracking-wider font-semibold">
-                    Compliant Security
+                    Sécurité conforme
                   </p>
                 </div>
               </div>
@@ -207,7 +219,7 @@ export default async function page({
                   +2k
                 </div>
               </div>
-              <p className="text-slate-400 text-sm">Trusted by clinics worldwide</p>
+              <p className="text-slate-400 text-sm">Approuvé par des cliniques dans le monde entier</p>
             </div>
           </div>
 

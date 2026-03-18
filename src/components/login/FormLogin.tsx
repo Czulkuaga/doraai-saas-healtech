@@ -3,11 +3,12 @@
 import React, { useMemo, useState } from "react";
 import { FiLock } from "react-icons/fi";
 import { LuMailCheck } from "react-icons/lu";
-import { FaArrowLeft } from "react-icons/fa";
+import { FaArrowLeft, FaRegEye } from "react-icons/fa";
 import { loginSchema, type LoginInput } from "@/lib/zod/auth";
 import type { z } from "zod";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { AiOutlineEyeInvisible } from "react-icons/ai";
 
 type FieldErrors = Partial<Record<keyof LoginInput, string>>;
 
@@ -171,7 +172,7 @@ export const FormLogin = () => {
             {/* EMAIL */}
             <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2" htmlFor="email">
-                    Email Address
+                    Adresse e-mail
                 </label>
 
                 <div className="relative">
@@ -204,7 +205,7 @@ export const FormLogin = () => {
                             {emailError}
                         </p>
                     ) : (
-                        <p className="text-xs text-slate-500 dark:text-slate-400">Use the email you registered with.</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Utilisez l’adresse e-mail avec laquelle vous vous êtes inscrit.</p>
                     )}
                 </div>
             </div>
@@ -213,7 +214,7 @@ export const FormLogin = () => {
             <div>
                 <div className="flex justify-between items-center mb-2">
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300" htmlFor="password">
-                        Password
+                        Mot de passe
                     </label>
                     <button
                         type="button"
@@ -221,7 +222,7 @@ export const FormLogin = () => {
                         onClick={() => setFormError("Password reset UI pending.")}
                         disabled={isAuthing}
                     >
-                        Forgot Password?
+                        Mot de passe oublié ?
                     </button>
                 </div>
 
@@ -255,7 +256,7 @@ export const FormLogin = () => {
                         disabled={isAuthing}
                         aria-label={showPassword ? "Hide password" : "Show password"}
                     >
-                        <span className="material-symbols-outlined text-lg">{showPassword ? "visibility_off" : "visibility"}</span>
+                        <span className="material-symbols-outlined text-lg">{showPassword ? <AiOutlineEyeInvisible size={18}/> : <FaRegEye size={18}/>}</span>
                     </button>
                 </div>
 
@@ -265,7 +266,7 @@ export const FormLogin = () => {
                             {passwordError}
                         </p>
                     ) : (
-                        <p className="text-xs text-slate-500 dark:text-slate-400">Minimum 8 characters.</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Minimum 8 caractères.</p>
                     )}
                 </div>
             </div>
@@ -281,14 +282,14 @@ export const FormLogin = () => {
                     disabled={isAuthing}
                 />
                 <label className="ml-2 text-sm font-medium text-slate-600 dark:text-slate-400" htmlFor="remember">
-                    Remember me for 30 days
+                    Se souvenir de moi pendant 30 jours
                 </label>
             </div>
 
             {/* SUBMIT */}
             <button
                 className={[
-                    "w-full bg-[#13ecda] text-slate-900 font-bold py-3.5 rounded-lg transition-all transform shadow-lg shadow-[#13ecda]/20",
+                    "w-full bg-[#13ecda] text-slate-900 font-bold py-3.5 rounded-lg transition-all transform shadow-lg shadow-[#13ecda]/20 cursor-pointer",
                     "hover:bg-[#13ecda]/90 hover:scale-[1.01] active:scale-95",
                     "disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100",
                 ].join(" ")}
@@ -302,7 +303,7 @@ export const FormLogin = () => {
                             aria-hidden="true"
                         />
                     )}
-                    {isAuthing ? "Signing in..." : "Sign In to Dashboard"}
+                    {isAuthing ? "Connecter..." : "Se connecter au tableau de bord"}
                 </span>
             </button>
 
@@ -314,7 +315,7 @@ export const FormLogin = () => {
                     className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-primary dark:hover:text-primary transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
                     <FaArrowLeft size={16} className="text-lg" />
-                    Back to Search Tenant
+                    Retour à la recherche de l’espace de travail
                 </Link>
             </div>
         </form>

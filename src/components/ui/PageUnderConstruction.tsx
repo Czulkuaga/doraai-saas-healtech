@@ -8,8 +8,8 @@ type Props = {
 };
 
 export function PageUnderConstruction({
-    title = "Página en construcción",
-    description = "Estamos trabajando en este módulo. Muy pronto estará disponible.",
+    title = "Page en cours de construction",
+    description = "Le module de gestion des rendez-vous sera bientôt disponible.",
     module,
 }: Props) {
     return (

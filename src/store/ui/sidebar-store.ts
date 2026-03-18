@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 
-export type GroupKey = "medicalRecord" | "sessions" | "settings";
+export type GroupKey = "medicalRecord" | "sessions" | "settings" | "organization";
 
 type SidebarState = {
   collapsed: boolean;
@@ -24,6 +24,7 @@ const initialState: Pick<SidebarState, "collapsed" | "openGroups"> = {
     medicalRecord: true,
     sessions: false,
     settings: false, // ✅ nuevo
+    organization: false
   },
 };
 

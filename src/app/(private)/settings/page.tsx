@@ -1,7 +1,10 @@
-import React from 'react'
+import { PageUnderConstruction } from '@/components/ui/PageUnderConstruction'
 
 export default function page() {
   return (
-    <div>page</div>
+    <PageUnderConstruction
+          module="Paramètres"
+          description="Cette fonctionnalité sera disponible très prochainement."
+        />
   )
 }

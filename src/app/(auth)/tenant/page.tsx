@@ -17,7 +17,7 @@ export default function page() {
                 <div className="mb-8 text-center">
                     <div className="inline-block relative mb-6">
                         <div className="w-full h-48 md:h-64 rounded-xl overflow-hidden shadow-2xl border-4 border-white dark:border-slate-800">
-                            <img alt="Medical Workspace" className="w-full h-full object-cover" data-alt="A clean modern medical clinic workspace illustration" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBI9a2OviQEYIEZSWKptNVmZaRun0r5jiR540opBumBZLUkr3-Ux_7ZJ5I8JHyGKuywnJ4ATYYmVfCPqZ4xJp5d1wnuNaV-jbHoChI8P1x8Anfw2crpbK44n70FKqaHWX-o--fPV3p8fU1GpTHrey47rjN3lqMbvnztZfFxDCsS6Hfl_aeAMSo4mgv4zKzF_wQER9AaHUBU5qq5KuCTgHQZ56N3UHePaw7XMT6PnrP4_vrHw8l7XsL8V8s-bNnjDxBwJzqSb-Q-qEFB" />
+                            <img alt="Medical Workspace" className="w-full h-full object-cover" data-alt="A clean modern medical clinic workspace illustration" src="/files/images/confiance-image.png" />
                         </div>
                         <div className="absolute -bottom-4 -right-4 bg-[#13ecda] text-[#102220] p-3 rounded-xl shadow-lg">
                             <MdDomain size={20} className="text-3xl" />
@@ -28,8 +28,8 @@ export default function page() {
                 <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-100 dark:border-slate-800 overflow-hidden">
                     <div className="p-8">
                         <div className="mb-6">
-                            <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight mb-2">Find your workspace</h1>
-                            <p className="text-slate-600 dark:text-slate-400">Enter the unique URL or clinic name provided to your organization to continue to sign in.</p>
+                            <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight mb-2">Trouvez votre espace de travail</h1>
+                            <p className="text-slate-600 dark:text-slate-400">Saisissez l’URL unique ou le nom de la clinique fourni à votre organisation pour continuer la connexion.</p>
                         </div>
                         <FormTenant />
                     </div>

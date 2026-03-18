@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { FaArrowRight, FaSearch } from "react-icons/fa";
+import { FaArrowRight, FaInfo, FaSearch } from "react-icons/fa";
 import { z } from "zod";
 import { tenantSchema, type TenantInput } from "@/lib/zod/tenant";
 import { slugifyTenant } from "@/lib/slug";
@@ -106,9 +106,9 @@ function TenantPickerModal(props: {
                 <div className="p-5 border-b border-slate-200 dark:border-slate-800">
                     <div className="flex items-start justify-between gap-4">
                         <div>
-                            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Select your clinic</h3>
+                            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Sélectionnez votre clinique</h3>
                             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                                We found multiple clinics. Choose the correct one to continue.
+                                Nous avons trouvé plusieurs cliniques. Veuillez sélectionner la bonne pour continuer.
                             </p>
                         </div>
 
@@ -130,7 +130,7 @@ function TenantPickerModal(props: {
                                 value={q}
                                 onChange={(e) => setQ(e.target.value)}
                                 className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-3 py-3 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-[#13ecda] dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
-                                placeholder="Search by clinic name or workspace..."
+                                placeholder="Rechercher par nom de clinique ou espace de travail..."
                             />
                         </div>
                     </div>
@@ -191,9 +191,9 @@ function TenantPickerModal(props: {
                 </div>
 
                 <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Tip: You can type the workspace URL too (slug).</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Astuce : vous pouvez également saisir l’URL de l’espace de travail (slug).</p>
                     <button type="button" onClick={onClose} className="rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900">
-                        Cancel
+                        Annuler
                     </button>
                 </div>
             </div>
@@ -335,7 +335,7 @@ export const FormTenant = () => {
 
                 <div className="space-y-2">
                     <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300" htmlFor="workspace-url">
-                        Clinic Name or Workspace URL
+                        Nom de la clinique ou URL de l’espace de travail
                     </label>
 
                     <div className="relative group">
@@ -350,7 +350,7 @@ export const FormTenant = () => {
                                 ].join(" ")}
                                 id="workspace-url"
                                 name="workspace-url"
-                                placeholder="e.g. City General Hospital"
+                                placeholder="ex. Hôpital Général de la Ville"
                                 type="text"
                                 value={values.workspace}
                                 disabled={isResolving}
@@ -374,13 +374,13 @@ export const FormTenant = () => {
                         </div>
 
                         <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                            Preview:{" "}
+                            Aperçu:{" "}
                             <span className="font-semibold text-slate-700 dark:text-slate-200">{previewSlug || "—"}</span>.{ROOT_DOMAIN}
                         </div>
 
                         {nextPath && (
                             <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                                Continue to:{" "}
+                                Continuer:{" "}
                                 <span className="font-semibold text-slate-700 dark:text-slate-200">{nextPath}</span>
                             </div>
                         )}
@@ -392,8 +392,8 @@ export const FormTenant = () => {
                                 </p>
                             ) : (
                                 <p id="workspace-help" className="text-xs text-slate-500 dark:text-slate-500 flex items-center gap-1.5">
-                                    <span className="material-symbols-outlined text-sm">info</span>
-                                    Hint: type the clinic name; we’ll show options if multiple match.
+                                    <FaInfo size={18}/>
+                                    Astuce: saisissez le nom de la clinique; nous afficherons des options en cas de correspondances multiples.
                                 </p>
                             )}
                         </div>
@@ -410,7 +410,7 @@ export const FormTenant = () => {
                 >
                     <span className="inline-flex items-center gap-2">
                         {isResolving && <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-[#102220]/30 border-t-[#102220]" />}
-                        {isResolving ? "Checking workspace..." : "Continue"}
+                        {isResolving ? "Vérification de l’espace de travail..." : "Continuer"}
                     </span>
                     <FaArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
                 </button>
