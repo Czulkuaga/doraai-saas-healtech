@@ -306,18 +306,23 @@ model User {
   email           String
   emailNormalized String  @unique
   name            String?
+  firstName       String?
+  lastName        String?
+  phone           String?
+  phoneNormalized String?
   passwordHash    String
   isActive        Boolean @default(true)
 
   memberships TenantMembership[]
   sessions    Session[]
   authEvents  AuthEvent[]
-  // userPreference UserPreference?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
+  @@unique([phoneNormalized])
   @@index([emailNormalized])
+  @@index([phoneNormalized])
 }
 
 model Role {

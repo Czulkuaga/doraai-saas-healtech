@@ -6,6 +6,7 @@ import { Footer } from "@/components";
 import type { AuthFailReason } from "@/lib/auth/session";
 import { getAuthStatus } from "@/lib/auth/session";
 import { ResponsiveSidebar } from "@/components/ui/ResponsiveSidebar";
+import { ToastProvider } from "@/components/ui/toast/toast-provider";
 
 function toLoginReason(r: AuthFailReason) {
     // Razones que se solucionan re-autenticando
@@ -69,17 +70,19 @@ export default async function PrivateLayout({
     }
 
     return (
-        <div className="flex min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-            <ResponsiveSidebar
-                clinic={{ name: tenant.name, slug: tenant.slug }}
-                user={{ name: user?.name ?? "User", email: user?.email ?? "—" }}
-            />
+        <ToastProvider>
+            <div className="flex min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+                <ResponsiveSidebar
+                    clinic={{ name: tenant.name, slug: tenant.slug }}
+                    user={{ name: user?.name ?? "User", email: user?.email ?? "—" }}
+                />
 
-            <main className="flex flex-col min-w-0 flex-1 lg:ml-64">
-                <Topbar />
-                <div className="p-8">{children}</div>
-                <Footer clinicName={tenant.name} />
-            </main>
-        </div>
+                <main className="flex flex-col min-w-0 flex-1 lg:ml-64">
+                    <Topbar />
+                    <div className="p-8">{children}</div>
+                    <Footer clinicName={tenant.name} />
+                </main>
+            </div>
+        </ToastProvider>
     );
 }
