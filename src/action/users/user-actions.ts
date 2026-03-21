@@ -4,7 +4,6 @@
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { MembershipCategory } from "../../../generated/prisma/enums";
 
 import { requireTenantId, requireUserId } from "@/lib/auth/session";

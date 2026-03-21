@@ -44,11 +44,17 @@ enum PartnerType {
 
 enum BPRoleType {
   PATIENT
+  GUARDIAN
+  EMERGENCY_CONTACT
   PROVIDER
-  STAFF
+  REFERRING_PROVIDER
   INSURER
-  CONTACT
+  PAYER
   SUPPLIER
+  LABORATORY
+  PHARMACY
+  CONTACT
+  STAFF
 }
 
 enum NumberRangeObject {
@@ -317,8 +323,8 @@ model User {
   sessions    Session[]
   authEvents  AuthEvent[]
 
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([phoneNormalized])
   @@index([emailNormalized])
@@ -634,7 +640,7 @@ model PreventiveFieldOption {
   version PreventiveTemplateVersion @relation(fields: [versionId], references: [id], onDelete: Restrict)
   field   PreventiveTemplateField   @relation(fields: [fieldId], references: [id], onDelete: Restrict)
 
-  singleSelectValues PreventiveCaseValue[] @relation("SingleSelectOption")
+  singleSelectValues PreventiveCaseValue[]       @relation("SingleSelectOption")
   multiSelectLinks   PreventiveCaseValueOption[]
 
   createdAt DateTime @default(now())
@@ -775,18 +781,20 @@ model BusinessPartner {
   id       String @id @default(uuid())
   tenantId String
 
-  code String
-  type PartnerType
+  code     String
+  type     PartnerType
+  isActive Boolean     @default(true)
 
   firstName        String?
   lastName         String?
   organizationName String?
 
-  email String?
-  phone String?
+  email           String?
+  emailNormalized String?
+  phone           String?
+  phoneNormalized String?
 
   birthDate DateTime?
-  // nationalId se elimina (ver Paso 5)
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
