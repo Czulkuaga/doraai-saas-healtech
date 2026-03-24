@@ -10,8 +10,9 @@ import {
     normalizeNullableString,
     normalizePhone,
 } from "@/lib/types/business-partner/business-partner.normalizers";
-// import { nextNumberRangeCode } from "@/lib/number-range";
-// import { NumberRangeObject } from "../../../generated/prisma/enums";
+import { nextNumberRangeCode } from "@/lib/number-range";
+import { NumberRangeObject } from "../../../generated/prisma/client";
+
 
 export async function createBusinessPartnerAction(
     raw: unknown
@@ -31,21 +32,38 @@ export async function createBusinessPartnerAction(
     const data = parsed.data;
 
     try {
-        const code = normalizeNullableString(data.code);
-        // const code =
-        //     normalizeNullableString(data.code) ??
-        //     (await nextNumberRangeCode({
-        //         tenantId,
-        //         object: NumberRangeObject.BUSINESS_PARTNER,
-        //         defaultPrefix: "BP",
-        //         defaultPadding: 6,
-        //     }));
-
         const created = await prisma.$transaction(async (tx) => {
+            const manualCode = normalizeNullableString(data.code);
+
+            if (manualCode) {
+                const existing = await tx.businessPartner.findFirst({
+                    where: {
+                        tenantId,
+                        code: manualCode,
+                    },
+                    select: { id: true },
+                });
+
+                if (existing) {
+                    throw new Error("BP_CODE_ALREADY_EXISTS");
+                }
+            }
+
+            const finalCode =
+                manualCode ??
+                (await nextNumberRangeCode({
+                    tenantId,
+                    object: NumberRangeObject.BUSINESS_PARTNER,
+                    defaultPrefix: "BP",
+                    defaultPadding: 6,
+                    defaultNextNo: 1,
+                    tx,
+                }));
+
             const bp = await tx.businessPartner.create({
                 data: {
                     tenantId,
-                    code: code ?? crypto.randomUUID().slice(0, 8).toUpperCase(),
+                    code: finalCode,
                     type: data.type,
                     isActive: data.isActive ?? true,
                     firstName: normalizeNullableString(data.firstName),
@@ -73,7 +91,7 @@ export async function createBusinessPartnerAction(
             return bp;
         });
 
-        revalidatePath("/business-partner");
+        revalidatePath("/organization/business-partner");
 
         return {
             ok: true,
@@ -82,6 +100,16 @@ export async function createBusinessPartnerAction(
         };
     } catch (error) {
         console.error("createBusinessPartnerAction", error);
+
+        if (error instanceof Error && error.message === "BP_CODE_ALREADY_EXISTS") {
+            return {
+                ok: false,
+                message: "Le code existe déjà.",
+                fieldErrors: {
+                    code: ["Le code existe déjà pour cette organisation."],
+                },
+            };
+        }
 
         return {
             ok: false,

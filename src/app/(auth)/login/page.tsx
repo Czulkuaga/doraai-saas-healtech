@@ -24,7 +24,7 @@ const BANNERS: Record<string, Banner> = {
       "Tu sesión fue revocada (por ejemplo, porque iniciaste sesión en otro dispositivo). Inicia sesión de nuevo.",
     tone: "warning",
   },
-  session_idle: {
+  idle: {
     title: "Sesión cerrada por inactividad",
     message:
       "Por seguridad, tu sesión se cerró por inactividad. Inicia sesión para continuar.",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { FiArrowLeft, FiCheck, FiSave } from "react-icons/fi";
 import { PartnerType, BPRoleType } from "../../../../../generated/prisma/enums";
@@ -13,6 +13,7 @@ import type {
     BusinessPartnerFormDefaults,
     BusinessPartnerFormValues,
 } from "@/lib/types/business-partner/business-partner.types";
+import { getNextBusinessPartnerCodeAction } from "@/action/business-partner/get-next-business-partner-code";
 
 type Props = {
     mode: "create" | "edit";
@@ -145,6 +146,36 @@ export function BusinessPartnerForm({ mode, defaultValues }: Props) {
         });
     }
 
+    useEffect(() => {
+        if (mode !== "create") return;
+        if ((values.code ?? "").trim() !== "") return;
+
+        let mounted = true;
+
+        async function loadSuggestedCode() {
+            try {
+                const suggested = await getNextBusinessPartnerCodeAction();
+                if (!mounted) return;
+
+                setValues((prev) => {
+                    if ((prev.code ?? "").trim() !== "") return prev;
+                    return {
+                        ...prev,
+                        code: suggested,
+                    };
+                });
+            } catch (error) {
+                console.error("loadSuggestedCode", error);
+            }
+        }
+
+        loadSuggestedCode();
+
+        return () => {
+            mounted = false;
+        };
+    }, [mode]);
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -160,7 +191,7 @@ export function BusinessPartnerForm({ mode, defaultValues }: Props) {
                 <button
                     type="button"
                     onClick={() => router.back()}
-                    className="inline-flex items-center gap-2 self-start rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-900"
+                    className="inline-flex items-center gap-2 self-start rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-900 cursor-pointer"
                 >
                     <FiArrowLeft className="h-4 w-4" />
                     Retour
@@ -201,12 +232,13 @@ export function BusinessPartnerForm({ mode, defaultValues }: Props) {
                                     <Label>Code</Label>
                                     <input
                                         value={values.code ?? ""}
+                                        disabled={mode === "edit" ? true : false}
                                         onChange={(e) => setField("code", e.target.value)}
                                         placeholder="BP000001"
-                                        className={inputClass}
+                                        className={`${inputClass} disabled:cursor-not-allowed disabled:bg-slate-100 disabled:dark:bg-slate-800`}
                                     />
                                     <Hint>
-                                        Laissez vide si vous souhaitez le générer automatiquement plus tard.
+                                        Un code suggéré est affiché automatiquement. Le code final sera validé à l’enregistrement.
                                     </Hint>
                                     <FieldError error={fieldErrors.code?.[0]} />
                                 </Field>
