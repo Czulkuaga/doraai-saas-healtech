@@ -1,10 +1,13 @@
-import { PageUnderConstruction } from '@/components/ui/PageUnderConstruction'
+import { getRolesList } from "@/action/roles/role.queries";
+import RolesManagementShell from "@/components/private/organizations/roles/roles-management-shell";
 
-export default function page() {
-  return (
-    <PageUnderConstruction
-      module="Rôles et permissions"
-      description="Cette fonctionnalité sera disponible très prochainement."
-    />
-  )
+type Props = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function RolesPage({ searchParams }: Props) {
+  const params = (await searchParams) ?? {};
+  const data = await getRolesList(params);
+
+  return <RolesManagementShell {...data} />;
 }

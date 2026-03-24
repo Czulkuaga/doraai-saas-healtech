@@ -54,6 +54,7 @@ export function ConfirmDialog({
     if (!open) return null;
 
     async function handleConfirm() {
+        if (pending) return;
         await onConfirm();
     }
 
@@ -62,7 +63,7 @@ export function ConfirmDialog({
             {/* Overlay */}
             <div
                 className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-                onClick={onClose}
+                onClick={pending ? undefined : onClose}
             />
 
             {/* Modal */}

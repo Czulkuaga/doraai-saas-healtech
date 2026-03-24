@@ -1,10 +1,5 @@
-import { PageUnderConstruction } from '@/components/ui/PageUnderConstruction'
+import OrganizationDashboard from "@/components/private/organizations/organization-dashboard";
 
-export default function page() {
-  return (
-    <PageUnderConstruction
-      module="Organisation"
-      description="Cette fonctionnalité sera disponible très prochainement."
-    />
-  )
+export default async function OrganizationPage() {
+    return <OrganizationDashboard />;
 }
