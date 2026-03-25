@@ -13,7 +13,7 @@ import { IoMdSettings } from "react-icons/io";
 
 // Medical Record Icons
 import { FaUserMd, FaFileMedicalAlt } from "react-icons/fa";
-import { LiaUsersCogSolid } from "react-icons/lia";
+import { LiaUserInjuredSolid, LiaUsersCogSolid } from "react-icons/lia";
 import { FiLink } from "react-icons/fi";
 import { GoOrganization } from "react-icons/go";
 
@@ -106,8 +106,9 @@ const ORG_SECTIONS = [
         key: "bp",
         href: "/organization/business-partner",
         label: "Person tiers",
-        icon: <LiaUsersCogSolid size={18}/>,
+        icon: <LiaUsersCogSolid size={18} />,
       },
+      { key: "patients_asigned", href: "/organization/patient-assignments", label: "Affectations des patients", icon: <LiaUserInjuredSolid size={18}/> },
     ],
   },
   {
@@ -190,7 +191,7 @@ export function Sidebar({ clinic, user }: { clinic: SidebarClinic; user: Sidebar
           groupKey="organization"
           href="/organization"
           label="Organisation"
-          icon={<GoOrganization size={20}/>}
+          icon={<GoOrganization size={20} />}
           sections={ORG_SECTIONS}
         />
 

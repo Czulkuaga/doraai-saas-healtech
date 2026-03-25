@@ -118,6 +118,14 @@ enum PreventiveValueKind {
   JSON
 }
 
+enum PatientProviderAssignmentType {
+  PRIMARY_CARE
+  PREVENTIVE_FOLLOWUP
+  NURSING
+  SPECIALIST_SUPPORT
+  OTHER
+}
+
 // ------------------------------------------------
 // Models
 // ------------------------------------------------
@@ -168,9 +176,10 @@ model Tenant {
   auditLogs  AuditLog[]
   authEvents AuthEvent[]
 
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  businessPartnerRoles BusinessPartnerRole[]
+  createdAt                  DateTime                    @default(now())
+  updatedAt                  DateTime                    @updatedAt
+  businessPartnerRoles       BusinessPartnerRole[]
+  patientProviderAssignments PatientProviderAssignment[]
 }
 
 model OrgUnit {
@@ -287,8 +296,9 @@ model ProviderProfile {
 
   partner BusinessPartner @relation(fields: [partnerId], references: [id], onDelete: Restrict)
 
-  specialties     ProviderSpecialty[]
-  preventiveCases PreventiveCase[]
+  specialties        ProviderSpecialty[]
+  preventiveCases    PreventiveCase[]
+  patientAssignments PatientProviderAssignment[] @relation("ProviderAssignments")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -776,6 +786,42 @@ model PreventiveCaseValueOption {
   @@index([tenantId, optionId])
 }
 
+model PatientProviderAssignment {
+  id String @id @default(uuid())
+
+  tenantId String
+
+  patientId         String
+  providerProfileId String
+
+  assignmentType PatientProviderAssignmentType @default(PREVENTIVE_FOLLOWUP)
+
+  isPrimary Boolean @default(false)
+  isActive  Boolean @default(true)
+
+  startDate DateTime?
+  endDate   DateTime?
+  notes     String?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  patient         BusinessPartner @relation("PatientAssignments", fields: [patientId], references: [id], onDelete: Restrict)
+  providerProfile ProviderProfile @relation("ProviderAssignments", fields: [providerProfileId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, patientId, providerProfileId, assignmentType])
+  @@index([tenantId])
+  @@index([tenantId, patientId])
+  @@index([tenantId, providerProfileId])
+  @@index([tenantId, isActive])
+  @@index([tenantId, isPrimary])
+  @@index([tenantId, assignmentType])
+  @@index([tenantId, patientId, isActive])
+  @@index([tenantId, providerProfileId, isActive])
+}
+
 // ------------------------------------------------
 // Master data
 // ------------------------------------------------
@@ -806,8 +852,9 @@ model BusinessPartner {
   providerProfile ProviderProfile?
   preventiveCases PreventiveCase[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+  patientAssignments PatientProviderAssignment[] @relation("PatientAssignments")
 
   @@unique([tenantId, code])
   @@index([tenantId])
