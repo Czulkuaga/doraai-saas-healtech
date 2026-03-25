@@ -7,21 +7,14 @@ import { SidebarGroup } from "./SidebarGroup";
 import { MdOutlineDashboard, MdOutlineSecurity } from "react-icons/md";
 import { FaRegCalendarAlt, FaUserInjured, FaUser, FaUsers } from "react-icons/fa";
 import { LuFileSliders } from "react-icons/lu";
-import { RiAdminFill, RiHistoryLine } from "react-icons/ri";
+import { RiHistoryLine } from "react-icons/ri";
 import { GrHost } from "react-icons/gr";
 import { IoMdSettings } from "react-icons/io";
 
 // Medical Record Icons
-import { FaUserMd, FaFileMedicalAlt, FaStethoscope } from "react-icons/fa";
-import { MdMonitorHeart, MdMedication } from "react-icons/md";
-import { LuClipboardList } from "react-icons/lu";
-import { RiTestTubeFill } from "react-icons/ri";
-import { GiSyringe } from "react-icons/gi";
-import { IoDocumentText } from "react-icons/io5";
-import { BsShieldExclamation } from "react-icons/bs";
-import { FaBuildingCircleArrowRight } from "react-icons/fa6";
+import { FaUserMd, FaFileMedicalAlt } from "react-icons/fa";
 import { LiaUsersCogSolid } from "react-icons/lia";
-import { FiLink, FiSettings } from "react-icons/fi";
+import { FiLink } from "react-icons/fi";
 import { GoOrganization } from "react-icons/go";
 
 export type SidebarClinic = { name: string; slug?: string | null };

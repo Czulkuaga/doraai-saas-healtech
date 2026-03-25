@@ -30,6 +30,12 @@ const BANNERS: Record<string, Banner> = {
       "Por seguridad, tu sesión se cerró por inactividad. Inicia sesión para continuar.",
     tone: "warning",
   },
+  session_idle: {
+    title: "Sesión cerrada por inactividad",
+    message:
+      "Por seguridad, tu sesión se cerró por inactividad. Inicia sesión para continuar.",
+    tone: "warning",
+  },
   not_authenticated: {
     title: "Acceso requerido",
     message: "Necesitas iniciar sesión para continuar.",
