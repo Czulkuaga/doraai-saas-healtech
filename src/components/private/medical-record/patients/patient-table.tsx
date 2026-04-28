@@ -245,7 +245,7 @@ function IconButton({
             title={title}
             onClick={onClick}
             className={[
-                "inline-flex h-10 w-10 items-center justify-center rounded-2xl border transition",
+                "inline-flex h-10 w-10 items-center justify-center rounded-2xl border transition cursor-pointer",
                 danger
                     ? "border-rose-500/20 bg-rose-500/5 text-rose-600 hover:bg-rose-500/10 dark:text-rose-300"
                     : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800",

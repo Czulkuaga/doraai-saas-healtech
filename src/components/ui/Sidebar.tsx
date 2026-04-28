@@ -39,7 +39,7 @@ const MEDICAL_RECORD_SECTIONS = [
     items: [
       { key: "mr_patients", href: "/medical-record/patients", label: "Patients", icon: <FaUserInjured size={18} /> },
       { key: "mr_professionals", href: "/medical-record/professionals", label: "Professionnels", icon: <FaUserMd size={18} /> },
-      { key: "mr_ps", href: "/medical-record/healt-promotion", label: "Promotion de la santé", icon: <FaFileMedicalAlt size={18} /> },
+      { key: "mr_ps", href: "/medical-record/health-promotion", label: "Promotion de la santé", icon: <FaFileMedicalAlt size={18} /> },
     ],
   },
   // {

@@ -220,12 +220,12 @@ export function PatientForm({ mode, defaultValues }: Props) {
                                             if (isEdit) return;
                                             setField("code", e.target.value);
                                         }}
-                                        readOnly={isEdit}
+                                        readOnly={true}
                                         className={[
                                             inputClass,
                                             isEdit
                                                 ? "cursor-not-allowed bg-slate-100 text-slate-500 dark:bg-slate-900 dark:text-slate-400"
-                                                : "",
+                                                : "cursor-not-allowed",
                                         ].join(" ")}
                                     />
                                     <Hint>
