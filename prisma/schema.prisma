@@ -115,6 +115,7 @@ enum PreventiveValueKind {
   DATETIME
   OPTION
   OPTION_LIST
+  FILE
   JSON
 }
 
@@ -185,6 +186,7 @@ model Tenant {
 model OrgUnit {
   id       String @id @default(uuid())
   tenantId String
+  isActive Boolean @default(true)
 
   // SAP-like org unit key
   code String
@@ -212,6 +214,7 @@ model OrgUnit {
 model Location {
   id       String @id @default(uuid())
   tenantId String
+  isActive Boolean @default(true)
 
   code String
   name String

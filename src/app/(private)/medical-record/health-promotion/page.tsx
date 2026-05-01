@@ -142,6 +142,14 @@ export default async function HealthPromotionPage() {
                 />
 
                 <StatCard
+                    title="Cas préventifs"
+                    description="Gérez les cas préventifs, suivez leur progression et structurez l'exécution clinique pour un ou plusieurs patients."
+                    href="/medical-record/health-promotion/cases"
+                    icon={<FiLayers className="h-6 w-6" />}
+                    badge="CRUD"
+                />
+
+                <StatCard
                     title="Campagnes et cas"
                     description="Organisez les campagnes de médecine préventive, ciblez un ou plusieurs patients et pilotez ensuite les cas générés individuellement."
                     href="/medical-record/health-promotion/campaigns"
