@@ -1,15 +1,19 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { FiEdit2 } from "react-icons/fi";
-import { FaArrowLeft } from "react-icons/fa6";
 
 import { getPatientByIdAction } from "@/action/patients/get-patient";
 import { getPatientProviderAssignmentsByPatientId } from "@/action/patient-provider-assignment/get-patient-provider-assignments-by-patient-id";
+import { getPatientPreventiveCasesAction } from "@/action/health-promotion/case/get-patient-preventive-cases";
 
 import { PatientDetailsCard } from "@/components/private/medical-record/patients/patient-details-card";
 import { PatientAssignedProvidersCard } from "@/components/private/medical-record/patients/patient-assigned-providers-card";
 
-import { patientEditPath, patientListPath } from "@/lib/types/patients/patients.routes";
+// import { patientEditPath, patientListPath } from "@/lib/types/patients/patients.routes";
+
+import { PatientClinicalHeader } from "@/components/private/medical-record/patients/patient-clinical-header";
+import { PatientClinicalTimeline } from "@/components/private/medical-record/patients/patient-clinical-timeline";
+import { PatientClinicalSummaryGrid } from "@/components/private/medical-record/patients/patient-clinical-summary-grid";
+import { PatientQuickActionsBar } from "@/components/private/medical-record/patients/patient-quick-actions-bar";
+import { PatientPreventiveCasesCard } from "@/components/private/medical-record/patients/patient-preventive-cases-card";
 
 type Props = {
     params: Promise<{ id: string }>;
@@ -18,50 +22,50 @@ type Props = {
 export default async function PatientDetailsPage({ params }: Props) {
     const { id } = await params;
 
-    const [item, assignments] = await Promise.all([
+    const [item, assignments, preventiveCases] = await Promise.all([
         getPatientByIdAction(id),
         getPatientProviderAssignmentsByPatientId(id),
+        getPatientPreventiveCasesAction(id),
     ]);
 
     if (!item) notFound();
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                    <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
-                        Détails du patient
-                    </h1>
-                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                        Consultez les informations principales de ce patient.
-                    </p>
-                </div>
 
-                <div className="flex gap-2">
-                    <Link
-                        href={patientListPath()}
-                        className="inline-flex items-center gap-2 self-start rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-900"
-                    >
-                        <FaArrowLeft className="h-4 w-4" />
-                        Back
-                    </Link>
+            <PatientClinicalHeader
+                patient={item}
+                assignments={assignments.map((a) => ({
+                    providerName: a.provider
+                        ? a.provider.label
+                        : null,
+                    isPrimary: a.isPrimary,
+                    isActive: a.isActive,
+                }))}
+            />
 
-                    <Link
-                        href={patientEditPath(item.id)}
-                        className="inline-flex items-center gap-2 self-start rounded-2xl bg-linear-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 px-4 py-2.5 text-sm font-semibold text-white"
-                    >
-                        <FiEdit2 className="h-4 w-4" />
-                        Modifier
-                    </Link>
+            <div className="grid gap-6 xl:grid-cols-[340px_1fr]">
+                <PatientClinicalTimeline items={preventiveCases.slice(0, 6)} />
+
+                <div className="space-y-6">
+                    <PatientDetailsCard item={item} />
+
+                    <PatientAssignedProvidersCard
+                        patientId={item.id}
+                        items={assignments}
+                    />
+
+                    <PatientClinicalSummaryGrid
+                        preventiveCasesCount={preventiveCases.length}
+                        activeProvidersCount={assignments.filter((a) => a.isActive).length}
+                    />
+
+                    <PatientPreventiveCasesCard items={preventiveCases} />
                 </div>
             </div>
 
-            <PatientDetailsCard item={item} />
+            <PatientQuickActionsBar patientId={item.id} />
 
-            <PatientAssignedProvidersCard
-                patientId={item.id}
-                items={assignments}
-            />
         </div>
     );
 }

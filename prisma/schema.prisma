@@ -127,6 +127,13 @@ enum PatientProviderAssignmentType {
   OTHER
 }
 
+enum PreventiveRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
 // ------------------------------------------------
 // Models
 // ------------------------------------------------

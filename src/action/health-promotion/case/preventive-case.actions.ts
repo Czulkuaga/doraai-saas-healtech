@@ -19,6 +19,60 @@ import {
     updatePreventiveCaseMetaSchema,
 } from "../../../lib/zod/private/health-promotion/case/preventive-case.schema";
 
+type FieldErrorsById = Record<string, string>;
+
+function isEmptyAnswer(value: unknown) {
+    return (
+        value === undefined ||
+        value === null ||
+        value === "" ||
+        (Array.isArray(value) && value.length === 0)
+    );
+}
+
+function isValidDateValue(value: unknown) {
+    if (typeof value !== "string" || !value) return false;
+
+    const date = new Date(value);
+
+    return !Number.isNaN(date.getTime());
+}
+
+function isValidNumberValue(value: unknown) {
+    if (value === "" || value === null || value === undefined) return false;
+
+    const numberValue = Number(value);
+
+    return Number.isFinite(numberValue);
+}
+
+function parseJsonValue(value: unknown) {
+    if (typeof value !== "string") {
+        return {
+            ok: true as const,
+            value,
+        };
+    }
+
+    if (!value.trim()) {
+        return {
+            ok: true as const,
+            value: null,
+        };
+    }
+
+    try {
+        return {
+            ok: true as const,
+            value: JSON.parse(value),
+        };
+    } catch {
+        return {
+            ok: false as const,
+            message: "Le format JSON est invalide.",
+        };
+    }
+}
 
 function mapFieldTypeToValueKind(type: PreventiveFieldType): PreventiveValueKind {
     switch (type) {
@@ -209,26 +263,83 @@ export async function savePreventiveCaseAnswersAction(rawInput: unknown) {
         },
     });
 
+    const fieldErrors: FieldErrorsById = {};
+
     const fieldsById = new Map(fields.map((field) => [field.id, field]));
 
     for (const field of fields) {
-        if (field.required) {
-            const value = answers[field.id];
+        const rawValue = answers[field.id];
 
-            const isEmpty =
-                value === undefined ||
-                value === null ||
-                value === "" ||
-                (Array.isArray(value) && value.length === 0);
+        if (field.required && isEmptyAnswer(rawValue)) {
+            fieldErrors[field.id] = "Ce champ est obligatoire.";
+            continue;
+        }
 
-            if (isEmpty) {
-                return {
-                    ok: false as const,
-                    message: "Veuillez compléter tous les champs obligatoires.",
-                };
+        if (isEmptyAnswer(rawValue)) {
+            continue;
+        }
+
+        if (field.type === PreventiveFieldType.NUMBER && !isValidNumberValue(rawValue)) {
+            fieldErrors[field.id] = "Veuillez saisir un nombre valide.";
+            continue;
+        }
+
+        if (field.type === PreventiveFieldType.DATE && !isValidDateValue(rawValue)) {
+            fieldErrors[field.id] = "Veuillez saisir une date valide.";
+            continue;
+        }
+
+        if (field.type === PreventiveFieldType.DATETIME && !isValidDateValue(rawValue)) {
+            fieldErrors[field.id] = "Veuillez saisir une date et une heure valides.";
+            continue;
+        }
+
+        if (field.type === PreventiveFieldType.SINGLE_SELECT) {
+            const optionId = typeof rawValue === "string" ? rawValue : "";
+
+            const exists = field.options.some((option) => option.id === optionId);
+
+            if (!exists) {
+                fieldErrors[field.id] = "Veuillez sélectionner une option valide.";
+                continue;
+            }
+        }
+
+        if (field.type === PreventiveFieldType.MULTI_SELECT) {
+            const optionIds = Array.isArray(rawValue)
+                ? rawValue.filter((value): value is string => typeof value === "string")
+                : [];
+
+            const validOptionIds = field.options.map((option) => option.id);
+
+            const allValid = optionIds.every((optionId) =>
+                validOptionIds.includes(optionId)
+            );
+
+            if (!allValid) {
+                fieldErrors[field.id] = "Une ou plusieurs options sont invalides.";
+                continue;
+            }
+        }
+
+        if (field.type === PreventiveFieldType.JSON) {
+            const parsedJson = parseJsonValue(rawValue);
+
+            if (!parsedJson.ok) {
+                fieldErrors[field.id] = parsedJson.message;
+                continue;
             }
         }
     }
+
+    if (Object.keys(fieldErrors).length > 0) {
+        return {
+            ok: false as const,
+            message: "Veuillez corriger les réponses du formulaire.",
+            fieldErrors,
+        };
+    }
+
 
     await prisma.$transaction(async (tx) => {
         for (const [fieldId, rawValue] of Object.entries(answers)) {
@@ -350,10 +461,13 @@ export async function savePreventiveCaseAnswersAction(rawInput: unknown) {
                             ? new Date(String(rawValue))
                             : null,
                     valueJson:
-                        field.type === PreventiveFieldType.FILE ||
-                            field.type === PreventiveFieldType.JSON
+                        field.type === PreventiveFieldType.FILE
                             ? rawValue
-                            : undefined,
+                            : field.type === PreventiveFieldType.JSON
+                                ? parseJsonValue(rawValue).ok
+                                    ? parseJsonValue(rawValue).value
+                                    : null
+                                : undefined,
                 },
             });
         }

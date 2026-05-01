@@ -143,6 +143,27 @@ function statusLabel(status: PreventiveCaseStatus) {
     }
 }
 
+function normalizeFieldErrors(
+    errors: unknown
+): Record<string, string> {
+    if (!errors || typeof errors !== "object") return {};
+
+    const result: Record<string, string> = {};
+
+    Object.entries(errors).forEach(([key, value]) => {
+        if (typeof value === "string") {
+            result[key] = value;
+            return;
+        }
+
+        if (Array.isArray(value) && typeof value[0] === "string") {
+            result[key] = value[0];
+        }
+    });
+
+    return result;
+}
+
 export function PreventiveCaseEditForm({
     caseData,
     providers,
@@ -163,6 +184,7 @@ export function PreventiveCaseEditForm({
     const [locationId, setLocationId] = useState(caseData.locationId ?? "");
     const [notes, setNotes] = useState(caseData.notes ?? "");
     const [isPending, setIsPending] = useState(false);
+    const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
     const initialAnswers = useMemo(() => {
         const valuesByFieldId = new Map(
@@ -216,6 +238,7 @@ export function PreventiveCaseEditForm({
 
     async function handleSaveAnswers() {
         setIsPending(true);
+        setFieldErrors({});
 
         const result = await savePreventiveCaseAnswersAction({
             caseId: caseData.id,
@@ -225,6 +248,10 @@ export function PreventiveCaseEditForm({
         setIsPending(false);
 
         if (!result.ok) {
+            if ("fieldErrors" in result && result.fieldErrors) {
+                setFieldErrors(normalizeFieldErrors(result.fieldErrors));
+            }
+
             toast.error("Erreur", result.message);
             return;
         }
@@ -386,6 +413,11 @@ export function PreventiveCaseEditForm({
                 );
 
             case PreventiveFieldType.FILE:
+                return (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+                        Le champ fichier n’est pas encore disponible dans cette version.
+                    </div>
+                );
             case PreventiveFieldType.JSON:
                 return (
                     <textarea
@@ -530,6 +562,12 @@ export function PreventiveCaseEditForm({
                                 </label>
 
                                 {renderField(field)}
+
+                                {fieldErrors[field.id] && (
+                                    <p className="text-xs text-rose-600 dark:text-rose-400">
+                                        {fieldErrors[field.id]}
+                                    </p>
+                                )}
                             </div>
                         ))}
                     </div>
