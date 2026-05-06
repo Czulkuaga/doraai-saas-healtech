@@ -11,7 +11,7 @@ export async function LastAccessSection({
   const sessions = await prisma.session.findMany({
     where: { userId, tenantId },
     orderBy: { createdAt: "desc" },
-    take: 25,
+    take: 5,
     select: {
       id: true,
       createdAt: true,

@@ -41,13 +41,13 @@ function browserLabel(ua?: string | null) {
 
 function statusPill(s: SessionRow) {
   if (s.revokedAt) {
-    return { label: "Revocada", cls: "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400" };
+    return { label: "RÉVOQUÉE", cls: "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400" };
   }
   const now = Date.now();
   if (s.expiresAt.getTime() <= now) {
-    return { label: "Expirada", cls: "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400" };
+    return { label: "EXPIRÉE", cls: "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400" };
   }
-  return { label: "Activa", cls: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" };
+  return { label: "ACTIVE", cls: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" };
 }
 
 function ipShort(ip?: string | null) {
@@ -61,25 +61,26 @@ export function LastAccessTable({ sessions }: { sessions: SessionRow[] }) {
     <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
       <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
         <div>
-          <h3 className="font-bold text-lg">Últimas Sesiones</h3>
+          <h3 className="font-bold text-lg">Sécurité & accès</h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            {sessions.length ? `Mostrando ${sessions.length} recientes` : "Sin sesiones registradas"}
+            {/* {sessions.length ? `Mostrando ${sessions.length} recientes` : "Sin sesiones registradas"} */}
+             Dernières connexions au compte.
           </p>
         </div>
-        <button className="text-primary text-sm font-medium hover:underline" type="button">
+        {/* <button className="text-primary text-sm font-medium hover:underline" type="button">
           Ver todo
-        </button>
+        </button> */}
       </div>
 
       <div className="overflow-x-auto">
         <table className="w-full text-left">
           <thead className="bg-slate-50 dark:bg-slate-700/50 text-slate-500 dark:text-slate-400 text-xs uppercase font-bold">
             <tr>
-              <th className="px-6 py-4">Estado</th>
-              <th className="px-6 py-4">Inicio</th>
-              <th className="px-6 py-4">Última actividad</th>
-              <th className="px-6 py-4">IP</th>
-              <th className="px-6 py-4">Dispositivo</th>
+              <th className="px-6 py-4">STATUT</th>
+              <th className="px-6 py-4">CONNEXION</th>
+              <th className="px-6 py-4">DERNIÈRE ACTIVITÉ</th>
+              <th className="px-6 py-4">ADRESSE IP</th>
+              <th className="px-6 py-4">APPAREIL</th>
             </tr>
           </thead>
 
@@ -105,8 +106,8 @@ export function LastAccessTable({ sessions }: { sessions: SessionRow[] }) {
                   <td className="px-6 py-4 text-sm text-slate-500">
                     {s.lastSeenAt ? fmt(s.lastSeenAt) : "—"}
                     <div className="text-[10px] text-slate-400 mt-1">
-                      Expira: {fmt(s.expiresAt)}
-                      {s.revokedAt ? ` · Revocada: ${fmt(s.revokedAt)}` : ""}
+                      Expire: {fmt(s.expiresAt)}
+                      {s.revokedAt ? ` · Révoquée: ${fmt(s.revokedAt)}` : ""}
                     </div>
                   </td>
 
