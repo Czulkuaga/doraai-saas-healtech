@@ -70,28 +70,91 @@ export async function listPatientsAction(raw?: PatientFilters): Promise<{
                     select: { role: true },
                     orderBy: { role: "asc" },
                 },
+
+                preventiveCases: {
+                    select: {
+                        id: true,
+                        code: true,
+                        status: true,
+                        createdAt: true,
+
+                        providerProfile: {
+                            select: {
+                                partner: {
+                                    select: {
+                                        firstName: true,
+                                        lastName: true,
+                                        organizationName: true,
+                                    },
+                                },
+                            },
+                        },
+                    },
+
+                    orderBy: {
+                        createdAt: "desc",
+                    },
+                },
             },
         }),
     ]);
 
     return {
-        items: rows.map((row) => ({
-            id: row.id,
-            tenantId: row.tenantId,
-            code: row.code,
-            type: row.type,
-            isActive: row.isActive,
-            firstName: row.firstName,
-            lastName: row.lastName,
-            organizationName: row.organizationName,
-            email: row.email,
-            emailNormalized: row.emailNormalized,
-            phone: row.phone,
-            phoneNormalized: row.phoneNormalized,
-            birthDate: row.birthDate,
-            createdAt: row.createdAt,
-            updatedAt: row.updatedAt,
-        })),
+        items: rows.map((row) => {
+            const latestCase = row.preventiveCases[0];
+
+            const providerPartner =
+                latestCase?.providerProfile?.partner;
+
+            const providerName = providerPartner
+                ? providerPartner.organizationName ||
+                [
+                    providerPartner.firstName,
+                    providerPartner.lastName,
+                ]
+                    .filter(Boolean)
+                    .join(" ")
+                : null;
+
+            return {
+                id: row.id,
+                tenantId: row.tenantId,
+                code: row.code,
+                type: row.type,
+                isActive: row.isActive,
+
+                firstName: row.firstName,
+                lastName: row.lastName,
+                organizationName: row.organizationName,
+
+                email: row.email,
+                emailNormalized: row.emailNormalized,
+
+                phone: row.phone,
+                phoneNormalized: row.phoneNormalized,
+
+                birthDate: row.birthDate,
+
+                createdAt: row.createdAt,
+                updatedAt: row.updatedAt,
+
+                // 🔥 NUEVOS CAMPOS
+                preventiveCasesCount:
+                    row.preventiveCases.length,
+
+                latestPreventiveCase:
+                    latestCase
+                        ? {
+                            id: latestCase.id,
+                            code: latestCase.code,
+                            status: latestCase.status,
+                            createdAt: latestCase.createdAt,
+                        }
+                        : null,
+
+                providerName,
+            };
+        }),
         totalItems,
         totalPages: Math.max(1, Math.ceil(totalItems / pageSize)),
         page,

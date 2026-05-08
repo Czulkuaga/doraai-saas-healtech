@@ -16,6 +16,7 @@ import {
     patientListPath,
 } from "@/lib/types/patients/patients.routes";
 import { FaUserInjured } from "react-icons/fa";
+import { PatientGrid } from "./PatientGrid";
 
 type Props = {
     items: PatientListItem[];
@@ -96,7 +97,15 @@ export function PatientListShell({
                 <PatientEmptyState onCreate={() => router.push(patientNewPath())} />
             ) : (
                 <>
-                    <PatientTable
+                    {/* <PatientTable
+                        items={items}
+                        page={page}
+                        totalPages={totalPages}
+                        onEdit={(id) => router.push(patientEditPath(id))}
+                        onView={(id) => router.push(patientDetailsPath(id))}
+                    /> */}
+
+                    <PatientGrid
                         items={items}
                         page={page}
                         totalPages={totalPages}
