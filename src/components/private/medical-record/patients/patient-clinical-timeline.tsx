@@ -36,7 +36,7 @@ export function PatientClinicalTimeline({ items }: Props) {
     return (
         <aside className="space-y-4">
             <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
-                Timeline clinique
+                Parcours préventif
             </h3>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950">

@@ -72,7 +72,7 @@ export function PatientCard({
                             <p className="text-sm font-medium text-[#5a8c84] dark:text-gray-400">
                                 {age !== null
                                     ? `${age} ans`
-                                    : "Date inconnue"}
+                                    : "Date de naissance inconnue"}
                             </p>
 
                             <div className="flex flex-col gap-1 pt-1">
@@ -94,7 +94,7 @@ export function PatientCard({
                     {/* DOSSIERS */}
                     <div className="rounded-2xl bg-slate-100 p-4 dark:bg-gray-700/50">
                         <p className="text-xs font-bold uppercase tracking-tight text-primary">
-                            Dossiers préventifs
+                            Suivis Préventifs
                         </p>
 
                         <div className="mt-2 flex items-end justify-between">
@@ -104,14 +104,14 @@ export function PatientCard({
                                 </p>
 
                                 <p className="text-xs text-[#5a8c84] dark:text-gray-400">
-                                    Dossiers enregistrés
+                                    Suivi actif
                                 </p>
                             </div>
 
                             {patient.providerName && (
                                 <div className="text-right">
                                     <p className="text-[10px] uppercase text-[#5a8c84] dark:text-gray-500">
-                                        Professionnel assigné
+                                        MÉDECIN RÉFÉRENT
                                     </p>
 
                                     <p className="text-sm font-bold text-[#101917] dark:text-white">
@@ -129,14 +129,14 @@ export function PatientCard({
                         onClick={() => onView(patient.id)}
                         className="cursor-pointer flex h-11 w-full items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-700 text-xs font-bold text-dark dark:text-slate-100 hover:bg-slate-300 dark:hover:bg-slate-400 transition-all hover:brightness-110"
                     >
-                        Voir le patient
+                        Fiche Clinique
                     </button>
 
                     <button
                         onClick={() => onEdit(patient.id)}
                         className="cursor-pointer flex h-11 w-full items-center justify-center rounded-xl border border-[#e9f1f0] bg-white text-xs font-bold text-[#101917] transition-all hover:bg-gray-50 hover:dark:bg-slate-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                     >
-                        Modifier
+                        Modifier le patient
                     </button>
                 </div>
             </div>

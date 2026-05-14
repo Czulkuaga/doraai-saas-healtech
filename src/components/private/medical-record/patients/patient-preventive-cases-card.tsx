@@ -52,7 +52,7 @@ export function PatientPreventiveCasesCard({ items }: Props) {
             <div className="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                        Cas préventifs
+                        Campagnes de prévention
                     </h2>
                     <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                         Historique des évaluations préventives du patient.

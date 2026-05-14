@@ -112,14 +112,14 @@ export function PatientClinicalHeader({ patient, assignments }: Props) {
 
                         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600 dark:text-slate-400">
                             <span>
-                                Code:{" "}
+                                Code patient:{" "}
                                 <strong className="font-medium text-slate-900 dark:text-slate-200">
                                     {patient.code || "—"}
                                 </strong>
                             </span>
 
                             <span>
-                                Professionnel:{" "}
+                                Médecin référent:{" "}
                                 <strong
                                     title={activeProviders
                                         .map((item) => item.providerName)

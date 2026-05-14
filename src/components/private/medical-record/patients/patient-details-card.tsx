@@ -23,15 +23,16 @@ export function PatientDetailsCard({ item }: Props) {
         <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-950">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <div>
-                    <p className="text-sm font-medium text-cyan-600 dark:text-cyan-300">
+                    {/* <p className="text-sm font-medium text-cyan-600 dark:text-cyan-300">
                         {item.code}
+                    </p> */}
+                    <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                        {getPatientTypeLabel(item.type)}
                     </p>
                     <h1 className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">
                         {getPatientDisplayName(item)}
                     </h1>
-                    <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                        {getPatientTypeLabel(item.type)}
-                    </p>
+                    
                 </div>
 
                 <PatientStatusBadge isActive={item.isActive} />
@@ -48,14 +49,14 @@ export function PatientDetailsCard({ item }: Props) {
                 <Field label="Mis à jour le" value={formatDate(item.updatedAt)} />
             </div>
 
-            <div className="mt-6 rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-4">
+            {/* <div className="mt-6 rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-4">
                 <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
                     Rôle système
                 </p>
                 <p className="mt-1 text-sm text-cyan-700 dark:text-cyan-300">
                     Patient
                 </p>
-            </div>
+            </div> */}
         </div>
     );
 }

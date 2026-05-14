@@ -51,7 +51,7 @@ export function getPatientInitials(input: {
 export function getPatientTypeLabel(type: PartnerType): string {
     switch (type) {
         case PartnerType.PERSON:
-            return "Personne";
+            return "Informations patient";
         case PartnerType.ORGANIZATION:
             return "Organisation";
         default:

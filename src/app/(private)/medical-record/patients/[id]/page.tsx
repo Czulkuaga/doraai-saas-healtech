@@ -55,10 +55,10 @@ export default async function PatientDetailsPage({ params }: Props) {
                         items={assignments}
                     />
 
-                    <PatientClinicalSummaryGrid
+                    {/* <PatientClinicalSummaryGrid
                         preventiveCasesCount={preventiveCases.length}
                         activeProvidersCount={assignments.filter((a) => a.isActive).length}
-                    />
+                    /> */}
 
                     <PatientPreventiveCasesCard items={preventiveCases} />
                 </div>

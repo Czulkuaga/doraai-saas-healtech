@@ -29,10 +29,10 @@ export function PatientAssignedProvidersCard({ patientId, items }: Props) {
 
                     <div>
                         <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                            Professionnels assignés
+                            Équipe de suivi
                         </h2>
                         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                            Relations actives et historiques entre ce patient et les professionnels.
+                            Professionnels associés au suivi du patient.
                         </p>
                     </div>
                 </div>
