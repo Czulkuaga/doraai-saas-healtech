@@ -283,7 +283,7 @@ function QuickActions() {
   ];
 
   return (
-    <section className="rounded-2xl border border-[#eaedf0] bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-slate-800 col-span-1">
+    <section className="h-78 rounded-2xl border border-[#eaedf0] bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-slate-800 col-span-1">
       <h2 className="mb-4 text-xs font-bold uppercase tracking-wider text-[#5f7586]">
         Actions rapides
       </h2>
