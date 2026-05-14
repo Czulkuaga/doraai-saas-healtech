@@ -100,13 +100,12 @@ export default async function DashboardPage() {
       <div className="grid grid-rows-1 mt-5">
         {/* MAIN */}
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 xl:grid-cols-7 space-y-5 space-x-4">
+        <div className="grid grid-cols-1 lg:grid-cols-4 xl:grid-cols-5 space-y-5 space-x-4">
           <PreventivePipeline data={pipeline} />
           <MonthActivity
             data={{}}
           />
           <QuickActions />
-          <RecentActivity items={activity} />
         </div>
 
         {/* <Suspense fallback={<LastAccessTableSkeleton />}>
@@ -123,6 +122,7 @@ export default async function DashboardPage() {
       <div className="grid grid-rows-1 mt-5">
         <div className="grid grid-cols-1 xl:grid-cols-3 space-x-4">
           <FollowedPathologies />
+          <RecentActivity items={activity} />
         </div>
       </div>
     </div>
