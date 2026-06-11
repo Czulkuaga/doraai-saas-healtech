@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { FiEdit2, FiPrinter } from "react-icons/fi";
 import { FaArrowLeft } from "react-icons/fa6";
@@ -6,6 +8,9 @@ import {
     patientEditPath,
     patientListPath,
 } from "@/lib/types/patients/patients.routes";
+
+import { useState, useTransition } from "react";
+import { updatePatientPathologiesAction } from "@/action/patients/update-patient-pathologies";
 
 type Patient = {
     id: string;
@@ -19,6 +24,17 @@ type Patient = {
     isActive?: boolean;
 };
 
+type PatientPathology = {
+    id: string;
+    patientPathologyId?: string;
+    code: string;
+    name: string;
+    color?: string | null;
+    description?: string | null;
+    notes?: string | null;
+    diagnosedAt?: Date | null;
+};
+
 type Assignment = {
     providerName?: string | null;
     isPrimary?: boolean;
@@ -28,6 +44,8 @@ type Assignment = {
 type Props = {
     patient: Patient;
     assignments: Assignment[];
+    pathologies: PatientPathology[];
+    availablePathologies: PatientPathology[];
 };
 
 function getPatientName(patient: Patient) {
@@ -67,7 +85,10 @@ function getInitials(name: string) {
         .join("");
 }
 
-export function PatientClinicalHeader({ patient, assignments }: Props) {
+export function PatientClinicalHeader({ patient, assignments, pathologies, availablePathologies }: Props) {
+
+    const [isPathologyModalOpen, setIsPathologyModalOpen] = useState(false);
+
     const patientName = getPatientName(patient);
     const age = getAge(patient.birthDate);
 
@@ -146,8 +167,37 @@ export function PatientClinicalHeader({ patient, assignments }: Props) {
                             )}
                         </div>
 
-                        <div className="mt-3 rounded-xl border border-amber-200 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300">
-                            Alertes médicales non configurées pour le moment.
+                        <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 dark:border-slate-800 dark:bg-slate-900">
+                            <div className="mb-2 flex items-center justify-between gap-3">
+                                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                                    Pathologies suivies
+                                </p>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setIsPathologyModalOpen(true)}
+                                    className="rounded-lg bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-700 transition hover:bg-emerald-500/20 dark:text-emerald-300"
+                                >
+                                    Gérer
+                                </button>
+                            </div>
+
+                            {pathologies.length > 0 ? (
+                                <div className="flex flex-wrap gap-2">
+                                    {pathologies.map((item) => (
+                                        <span
+                                            key={item.id}
+                                            className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-700 dark:text-emerald-300"
+                                        >
+                                            {item.name}
+                                        </span>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-sm text-slate-500 dark:text-slate-400">
+                                    Aucune pathologie configurée pour le moment.
+                                </p>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -178,6 +228,126 @@ export function PatientClinicalHeader({ patient, assignments }: Props) {
                     </button>
                 </div>
             </div>
+
+
+            {isPathologyModalOpen && (
+                <PatientPathologiesModal
+                    patientId={patient.id}
+                    selectedPathologies={pathologies}
+                    availablePathologies={availablePathologies}
+                    onClose={() => setIsPathologyModalOpen(false)}
+                />
+            )}
         </section>
+    );
+}
+
+
+function PatientPathologiesModal({
+    patientId,
+    selectedPathologies,
+    availablePathologies,
+    onClose,
+}: {
+    patientId: string;
+    selectedPathologies: PatientPathology[];
+    availablePathologies: PatientPathology[];
+    onClose: () => void;
+}) {
+    const [isPending, startTransition] = useTransition();
+
+    const [selected, setSelected] = useState<string[]>(
+        selectedPathologies.map((item) => item.id)
+    );
+
+    function toggle(id: string) {
+        setSelected((current) =>
+            current.includes(id)
+                ? current.filter((item) => item !== id)
+                : [...current, id]
+        );
+    }
+
+    function onSave() {
+        startTransition(async () => {
+            await updatePatientPathologiesAction({
+                patientId,
+                pathologyIds: selected,
+            });
+
+            onClose();
+        });
+    }
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-800 dark:bg-slate-950">
+                <div className="mb-5 flex items-start justify-between gap-4">
+                    <div>
+                        <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                            Gérer les pathologies
+                        </h2>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                            Sélectionnez les pathologies suivies pour ce patient.
+                        </p>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        disabled={isPending}
+                        className="rounded-lg px-2 py-1 text-sm text-slate-500 hover:bg-slate-100 disabled:opacity-50 dark:hover:bg-slate-900"
+                    >
+                        ✕
+                    </button>
+                </div>
+
+                <div className="grid max-h-[360px] gap-2 overflow-y-auto sm:grid-cols-2">
+                    {availablePathologies.map((item) => {
+                        const checked = selected.includes(item.id);
+
+                        return (
+                            <button
+                                key={item.id}
+                                type="button"
+                                onClick={() => toggle(item.id)}
+                                disabled={isPending}
+                                className={`rounded-xl border px-4 py-3 text-left text-sm font-semibold transition disabled:opacity-60 ${checked
+                                        ? "border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                                    }`}
+                            >
+                                <span>{item.name}</span>
+                                {item.code && (
+                                    <span className="mt-1 block text-[10px] font-medium uppercase text-slate-400">
+                                        {item.code}
+                                    </span>
+                                )}
+                            </button>
+                        );
+                    })}
+                </div>
+
+                <div className="mt-6 flex justify-end gap-2">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        disabled={isPending}
+                        className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                        Annuler
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={onSave}
+                        disabled={isPending}
+                        className="rounded-xl bg-linear-to-r from-emerald-500 to-cyan-500 px-4 py-2 text-sm font-semibold text-white transition hover:from-emerald-400 hover:to-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        {isPending ? "Enregistrement..." : "Enregistrer"}
+                    </button>
+                </div>
+            </div>
+        </div>
     );
 }

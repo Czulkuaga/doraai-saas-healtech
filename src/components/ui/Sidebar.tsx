@@ -5,7 +5,7 @@ import { SidebarGroup } from "./SidebarGroup";
 
 // Icons
 import { MdOutlineDashboard, MdOutlineSecurity } from "react-icons/md";
-import { FaRegCalendarAlt, FaUserInjured, FaUser, FaUsers } from "react-icons/fa";
+import { FaRegCalendarAlt, FaUserInjured, FaUser, FaUsers, FaPlusSquare } from "react-icons/fa";
 import { LuFileSliders } from "react-icons/lu";
 import { RiHistoryLine } from "react-icons/ri";
 import { GrHost } from "react-icons/gr";
@@ -40,6 +40,7 @@ const MEDICAL_RECORD_SECTIONS = [
       { key: "mr_patients", href: "/medical-record/patients", label: "Patients", icon: <FaUserInjured size={18} /> },
       { key: "mr_professionals", href: "/medical-record/professionals", label: "Professionnels", icon: <FaUserMd size={18} /> },
       { key: "mr_ps", href: "/medical-record/health-promotion", label: "Campagnes", icon: <FaFileMedicalAlt size={18} /> },
+      { key: "mr_pathologies", href: "/medical-record/pathologies", label: "Pathologies", icon: <FaPlusSquare size={18}/> },
     ],
   },
   // {

@@ -11,9 +11,12 @@ import { PatientAssignedProvidersCard } from "@/components/private/medical-recor
 
 import { PatientClinicalHeader } from "@/components/private/medical-record/patients/patient-clinical-header";
 import { PatientClinicalTimeline } from "@/components/private/medical-record/patients/patient-clinical-timeline";
-import { PatientClinicalSummaryGrid } from "@/components/private/medical-record/patients/patient-clinical-summary-grid";
+// import { PatientClinicalSummaryGrid } from "@/components/private/medical-record/patients/patient-clinical-summary-grid";
 import { PatientQuickActionsBar } from "@/components/private/medical-record/patients/patient-quick-actions-bar";
 import { PatientPreventiveCasesCard } from "@/components/private/medical-record/patients/patient-preventive-cases-card";
+
+import { getPatientPathologiesAction } from "@/action/patients/get-patient-pathologies";
+import { getAvailablePathologiesAction } from "@/action/patients/get-available-pathologies";
 
 type Props = {
     params: Promise<{ id: string }>;
@@ -22,10 +25,12 @@ type Props = {
 export default async function PatientDetailsPage({ params }: Props) {
     const { id } = await params;
 
-    const [item, assignments, preventiveCases] = await Promise.all([
+    const [item, assignments, preventiveCases, pathologies, availablePathologies,] = await Promise.all([
         getPatientByIdAction(id),
         getPatientProviderAssignmentsByPatientId(id),
         getPatientPreventiveCasesAction(id),
+        getPatientPathologiesAction(id),
+        getAvailablePathologiesAction(),
     ]);
 
     if (!item) notFound();
@@ -35,10 +40,10 @@ export default async function PatientDetailsPage({ params }: Props) {
 
             <PatientClinicalHeader
                 patient={item}
+                pathologies={pathologies}
+                availablePathologies={availablePathologies}
                 assignments={assignments.map((a) => ({
-                    providerName: a.provider
-                        ? a.provider.label
-                        : null,
+                    providerName: a.provider ? a.provider.label : null,
                     isPrimary: a.isPrimary,
                     isActive: a.isActive,
                 }))}
