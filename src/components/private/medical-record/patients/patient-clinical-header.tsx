@@ -302,7 +302,7 @@ function PatientPathologiesModal({
                     </button>
                 </div>
 
-                <div className="grid max-h-[360px] gap-2 overflow-y-auto sm:grid-cols-2">
+                <div className="grid max-h-90 gap-2 overflow-y-auto sm:grid-cols-2">
                     {availablePathologies.map((item) => {
                         const checked = selected.includes(item.id);
 
