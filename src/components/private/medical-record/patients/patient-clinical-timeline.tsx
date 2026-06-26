@@ -90,7 +90,7 @@ export function PatientClinicalTimeline({ items }: Props) {
                 <div className="pb-6">
                   <div className="flex flex-wrap items-center gap-2">
                     <Link
-                      href={`/medical-record/health-promotion/cases/${item.id}`}
+                      href={`/medical-record/suivi-cases/cases/${item.id}`}
                       className="text-sm font-semibold text-slate-900 hover:text-cyan-600 dark:text-slate-100 dark:hover:text-cyan-300"
                     >
                       {getCaseLabel(item)}

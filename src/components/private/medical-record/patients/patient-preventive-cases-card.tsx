@@ -128,7 +128,7 @@ export function PatientPreventiveCasesCard({ items }: Props) {
         </div>
 
         <Link
-          href="/medical-record/health-promotion/cases/new"
+          href="/medical-record/suivi-cases/cases/new"
           className="inline-flex items-center gap-2 rounded-2xl bg-linear-to-r from-emerald-500 to-cyan-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:from-emerald-400 hover:to-cyan-400"
         >
           Nouveau dossier
@@ -228,14 +228,14 @@ export function PatientPreventiveCasesCard({ items }: Props) {
 
                 <td className="space-x-2 px-5 py-3 text-right">
                   <Link
-                    href={`/medical-record/health-promotion/cases/${item.id}`}
+                    href={`/medical-record/suivi-cases/cases/${item.id}`}
                     className="inline-flex rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                   >
                     Voir
                   </Link>
 
                   <Link
-                    href={`/medical-record/health-promotion/cases/${item.id}/edit`}
+                    href={`/medical-record/suivi-cases/cases/${item.id}/edit`}
                     className="inline-flex rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500"
                   >
                     Modifier
