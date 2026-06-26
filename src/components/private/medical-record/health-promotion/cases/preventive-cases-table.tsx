@@ -28,8 +28,8 @@ function statusLabel(status: PreventiveCaseStatus) {
     switch (status) {
         case PreventiveCaseStatus.OPEN:
             return "Ouvert";
-        case PreventiveCaseStatus.IN_PROGRESS:
-            return "En cours";
+        case PreventiveCaseStatus.ACTIVE:
+            return "Active";
         case PreventiveCaseStatus.COMPLETED:
             return "Complété";
         case PreventiveCaseStatus.CANCELLED:

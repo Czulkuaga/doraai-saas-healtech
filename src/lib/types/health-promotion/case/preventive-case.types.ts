@@ -1,7 +1,5 @@
 import {
     PreventiveCaseStatus,
-    PreventiveFieldType,
-    PreventiveValueKind,
 } from "../../../../../generated/prisma/enums";
 
 export type PreventiveCaseSortBy =
@@ -45,7 +43,6 @@ export type PreventiveCaseFieldItem = {
     id: string;
     key: string;
     label: string;
-    type: PreventiveFieldType;
     required: boolean;
     order: number;
     config: unknown;
@@ -63,7 +60,6 @@ export type PreventiveCaseSectionItem = {
 export type PreventiveCaseAnswerValue = {
     id: string;
     fieldId: string;
-    kind: PreventiveValueKind;
     valueString: string | null;
     valueNumber: string | null;
     valueBoolean: boolean | null;

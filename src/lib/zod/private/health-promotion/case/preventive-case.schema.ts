@@ -2,40 +2,94 @@
 
 import { z } from "zod";
 
+import {
+  FollowUpFrequency,
+  PreventiveCaseStatus,
+  PreventiveRiskLevel,
+} from "../../../../../../generated/prisma/enums";
+
+const nullableUuid = z
+  .string()
+  .uuid()
+  .optional()
+  .or(z.literal(""))
+  .nullable()
+  .transform((value) => value || null);
+
+const nullableText = z
+  .string()
+  .trim()
+  .optional()
+  .nullable()
+  .transform((value) => value || null);
+
+const nullableDate = z
+  .date()
+  .optional()
+  .nullable()
+  .or(z.string().optional().nullable())
+  .transform((value) => {
+    if (!value) return null;
+    return value instanceof Date ? value : new Date(value);
+  });
+
+const nullableNumber = z
+  .number()
+  .int()
+  .min(0)
+  .optional()
+  .nullable()
+  .or(z.string().optional().nullable())
+  .transform((value) => {
+    if (value === "" || value === null || value === undefined) return null;
+    return typeof value === "number" ? value : Number(value);
+  });
+
 export const createPreventiveCaseSchema = z.object({
-    patientId: z.string().uuid("Le patient est obligatoire."),
-    templateId: z.string().uuid("Le modèle préventif est obligatoire."),
+  patientId: z.string().uuid("Le patient est obligatoire."),
 
-    providerProfileId: z.string().uuid().optional().or(z.literal("")),
-    orgUnitId: z.string().uuid().optional().or(z.literal("")),
-    locationId: z.string().uuid().optional().or(z.literal("")),
+  title: nullableText,
+  status: z.nativeEnum(PreventiveCaseStatus).optional(),
 
-    notes: z.string().max(2000, "Maximum 2000 caractères.").optional(),
+  pathologyId: nullableUuid,
+  providerProfileId: nullableUuid,
+  orgUnitId: nullableUuid,
+  locationId: nullableUuid,
+  serviceTypeId: nullableUuid,
+  specialtyId: nullableUuid,
+
+  riskLevel: z.nativeEnum(PreventiveRiskLevel).optional().nullable(),
+  followUpFrequency: z.nativeEnum(FollowUpFrequency).optional().nullable(),
+  followUpIntervalDays: nullableNumber,
+
+  nextFollowUpAt: nullableDate,
+  nextAutomaticFollowUpAt: nullableDate,
+
+  notes: z
+    .string()
+    .max(2000, "Maximum 2000 caractères.")
+    .optional()
+    .nullable()
+    .transform((value) => value || null),
 });
 
-export type CreatePreventiveCaseInput = z.infer<typeof createPreventiveCaseSchema>;
-
-export const updatePreventiveCaseMetaSchema = z.object({
-    id: z.string().uuid(),
-    providerProfileId: z.string().uuid().optional().or(z.literal("")),
-    orgUnitId: z.string().uuid().optional().or(z.literal("")),
-    locationId: z.string().uuid().optional().or(z.literal("")),
-    notes: z.string().max(2000, "Maximum 2000 caractères.").optional(),
-});
-
-export type UpdatePreventiveCaseMetaInput = z.infer<
-    typeof updatePreventiveCaseMetaSchema
+export type CreatePreventiveCaseInput = z.infer<
+  typeof createPreventiveCaseSchema
 >;
 
-export const savePreventiveCaseAnswersSchema = z.object({
-    caseId: z.string().uuid(),
-    answers: z.record(z.string(), z.unknown()),
-});
+export const updatePreventiveCaseMetaSchema = createPreventiveCaseSchema
+  .omit({
+    patientId: true,
+  })
+  .extend({
+    id: z.string().uuid(),
+    status: z.nativeEnum(PreventiveCaseStatus),
+  });
 
-export type SavePreventiveCaseAnswersInput = z.infer<
-    typeof savePreventiveCaseAnswersSchema
+export type UpdatePreventiveCaseMetaInput = z.infer<
+  typeof updatePreventiveCaseMetaSchema
 >;
 
 export const preventiveCaseIdSchema = z.object({
-    id: z.string().uuid(),
+  id: z.string().uuid(),
 });

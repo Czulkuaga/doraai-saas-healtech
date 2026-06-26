@@ -2,74 +2,49 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
+
 import {
+    FollowUpFrequency,
     PreventiveCaseStatus,
-    PreventiveFieldType,
+    PreventiveRiskLevel,
 } from "../../../../../../generated/prisma/enums";
+
 import {
     completePreventiveCaseAction,
-    savePreventiveCaseAnswersAction,
     updatePreventiveCaseMetaAction,
 } from "@/action/health-promotion/case/preventive-case.actions";
+
 import { useToast } from "@/components/ui/toast/use-toast";
 
 type Option = {
     id: string;
     name: string;
-};
-
-type FieldOption = {
-    id: string;
-    key: string;
-    label: string;
-    order: number;
-};
-
-type Field = {
-    id: string;
-    key: string;
-    label: string;
-    type: PreventiveFieldType;
-    required: boolean;
-    order: number;
-    config: unknown;
-    options: FieldOption[];
-};
-
-type Section = {
-    id: string;
-    key: string;
-    title: string;
-    order: number;
-    fields: Field[];
-};
-
-type ExistingValue = {
-    fieldId: string;
-    valueString: string | null;
-    valueNumber: string | null;
-    valueBoolean: boolean | null;
-    valueDate: Date | null;
-    valueDateTime: Date | null;
-    valueJson: unknown;
-    optionId: string | null;
-    optionIds: string[];
+    code?: string;
 };
 
 type CaseData = {
     id: string;
     code: string;
+    title: string | null;
     status: PreventiveCaseStatus;
     notes: string | null;
+
+    riskLevel: PreventiveRiskLevel | null;
+    followUpFrequency: FollowUpFrequency | null;
+    followUpIntervalDays: number | null;
+    nextFollowUpAt: Date | null;
+    nextAutomaticFollowUpAt: Date | null;
+
+    pathologyId: string | null;
     providerProfileId: string | null;
     orgUnitId: string | null;
     locationId: string | null;
-    templateName: string;
+    serviceTypeId: string | null;
+    specialtyId: string | null;
+
     patientName: string;
-    sections: Section[];
-    values: ExistingValue[];
 };
 
 type Props = {
@@ -77,6 +52,9 @@ type Props = {
     providers: Option[];
     orgUnits: Option[];
     locations: Option[];
+    pathologies: Option[];
+    serviceTypes: Option[];
+    specialties: Option[];
 };
 
 function dateToInputValue(date: Date | null) {
@@ -84,58 +62,16 @@ function dateToInputValue(date: Date | null) {
     return new Date(date).toISOString().slice(0, 10);
 }
 
-function dateTimeToInputValue(date: Date | null) {
-    if (!date) return "";
-    return new Date(date).toISOString().slice(0, 16);
-}
-
-function getInitialAnswer(value: ExistingValue | undefined, field: Field) {
-    if (!value) {
-        if (field.type === PreventiveFieldType.MULTI_SELECT) return [];
-        if (field.type === PreventiveFieldType.BOOLEAN) return "";
-        return "";
-    }
-
-    switch (field.type) {
-        case PreventiveFieldType.TEXT:
-        case PreventiveFieldType.TEXTAREA:
-            return value.valueString ?? "";
-
-        case PreventiveFieldType.NUMBER:
-            return value.valueNumber ?? "";
-
-        case PreventiveFieldType.BOOLEAN:
-            return value.valueBoolean === null ? "" : String(value.valueBoolean);
-
-        case PreventiveFieldType.DATE:
-            return dateToInputValue(value.valueDate);
-
-        case PreventiveFieldType.DATETIME:
-            return dateTimeToInputValue(value.valueDateTime);
-
-        case PreventiveFieldType.SINGLE_SELECT:
-            return value.optionId ?? "";
-
-        case PreventiveFieldType.MULTI_SELECT:
-            return value.optionIds ?? [];
-
-        case PreventiveFieldType.FILE:
-        case PreventiveFieldType.JSON:
-            return value.valueJson ? JSON.stringify(value.valueJson, null, 2) : "";
-
-        default:
-            return "";
-    }
-}
-
 function statusLabel(status: PreventiveCaseStatus) {
     switch (status) {
         case PreventiveCaseStatus.OPEN:
             return "Ouvert";
-        case PreventiveCaseStatus.IN_PROGRESS:
-            return "En cours";
+        case PreventiveCaseStatus.ACTIVE:
+            return "Actif";
+        case PreventiveCaseStatus.ON_HOLD:
+            return "En pause";
         case PreventiveCaseStatus.COMPLETED:
-            return "Complété";
+            return "Terminé";
         case PreventiveCaseStatus.CANCELLED:
             return "Annulé";
         default:
@@ -143,32 +79,14 @@ function statusLabel(status: PreventiveCaseStatus) {
     }
 }
 
-function normalizeFieldErrors(
-    errors: unknown
-): Record<string, string> {
-    if (!errors || typeof errors !== "object") return {};
-
-    const result: Record<string, string> = {};
-
-    Object.entries(errors).forEach(([key, value]) => {
-        if (typeof value === "string") {
-            result[key] = value;
-            return;
-        }
-
-        if (Array.isArray(value) && typeof value[0] === "string") {
-            result[key] = value[0];
-        }
-    });
-
-    return result;
-}
-
 export function PreventiveCaseEditForm({
     caseData,
     providers,
     orgUnits,
     locations,
+    pathologies,
+    serviceTypes,
+    specialties,
 }: Props) {
     const router = useRouter();
     const toast = useToast();
@@ -177,81 +95,58 @@ export function PreventiveCaseEditForm({
         caseData.status === PreventiveCaseStatus.COMPLETED ||
         caseData.status === PreventiveCaseStatus.CANCELLED;
 
+    const [title, setTitle] = useState(caseData.title ?? "");
+    const [status, setStatus] = useState<PreventiveCaseStatus>(caseData.status);
+    const [riskLevel, setRiskLevel] = useState(caseData.riskLevel ?? "");
+    const [followUpFrequency, setFollowUpFrequency] = useState(
+        caseData.followUpFrequency ?? ""
+    );
+    const [followUpIntervalDays, setFollowUpIntervalDays] = useState(
+        caseData.followUpIntervalDays?.toString() ?? ""
+    );
+    const [nextFollowUpAt, setNextFollowUpAt] = useState(
+        dateToInputValue(caseData.nextFollowUpAt)
+    );
+
+    const [pathologyId, setPathologyId] = useState(caseData.pathologyId ?? "");
     const [providerProfileId, setProviderProfileId] = useState(
         caseData.providerProfileId ?? ""
     );
     const [orgUnitId, setOrgUnitId] = useState(caseData.orgUnitId ?? "");
     const [locationId, setLocationId] = useState(caseData.locationId ?? "");
+    const [serviceTypeId, setServiceTypeId] = useState(
+        caseData.serviceTypeId ?? ""
+    );
+    const [specialtyId, setSpecialtyId] = useState(caseData.specialtyId ?? "");
     const [notes, setNotes] = useState(caseData.notes ?? "");
+
     const [isPending, setIsPending] = useState(false);
-    const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-
-    const initialAnswers = useMemo(() => {
-        const valuesByFieldId = new Map(
-            caseData.values.map((value) => [value.fieldId, value])
-        );
-
-        const result: Record<string, unknown> = {};
-
-        for (const section of caseData.sections) {
-            for (const field of section.fields) {
-                result[field.id] = getInitialAnswer(
-                    valuesByFieldId.get(field.id),
-                    field
-                );
-            }
-        }
-
-        return result;
-    }, [caseData.sections, caseData.values]);
-
-    const [answers, setAnswers] = useState<Record<string, unknown>>(initialAnswers);
-
-    function updateAnswer(fieldId: string, value: unknown) {
-        setAnswers((prev) => ({
-            ...prev,
-            [fieldId]: value,
-        }));
-    }
 
     async function handleSaveMeta() {
         setIsPending(true);
 
         const result = await updatePreventiveCaseMetaAction({
             id: caseData.id,
-            providerProfileId,
-            orgUnitId,
-            locationId,
+            title,
+            status,
+            riskLevel: riskLevel || null,
+            followUpFrequency: followUpFrequency || null,
+            followUpIntervalDays: followUpIntervalDays
+                ? Number(followUpIntervalDays)
+                : null,
+            nextFollowUpAt: nextFollowUpAt ? new Date(nextFollowUpAt) : null,
+            pathologyId: pathologyId || null,
+            providerProfileId: providerProfileId || null,
+            orgUnitId: orgUnitId || null,
+            locationId: locationId || null,
+            serviceTypeId: serviceTypeId || null,
+            specialtyId: specialtyId || null,
             notes,
         });
 
         setIsPending(false);
 
         if (!result.ok) {
-            toast.error("Erreur", result.message);
-            return;
-        }
-
-        toast.success("Succès", result.message);
-        router.refresh();
-    }
-
-    async function handleSaveAnswers() {
-        setIsPending(true);
-        setFieldErrors({});
-
-        const result = await savePreventiveCaseAnswersAction({
-            caseId: caseData.id,
-            answers,
-        });
-
-        setIsPending(false);
-
-        if (!result.ok) {
-            if ("fieldErrors" in result && result.fieldErrors) {
-                setFieldErrors(normalizeFieldErrors(result.fieldErrors));
-            }
-
             toast.error("Erreur", result.message);
             return;
         }
@@ -278,162 +173,6 @@ export function PreventiveCaseEditForm({
         router.push(`/medical-record/health-promotion/cases/${caseData.id}`);
     }
 
-    function renderField(field: Field) {
-        const baseClass =
-            "w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100";
-
-        const value = answers[field.id];
-
-        switch (field.type) {
-            case PreventiveFieldType.TEXT:
-                return (
-                    <input
-                        value={String(value ?? "")}
-                        disabled={disabled || isPending}
-                        onChange={(event) => updateAnswer(field.id, event.target.value)}
-                        className={baseClass}
-                    />
-                );
-
-            case PreventiveFieldType.TEXTAREA:
-                return (
-                    <textarea
-                        value={String(value ?? "")}
-                        disabled={disabled || isPending}
-                        rows={4}
-                        onChange={(event) => updateAnswer(field.id, event.target.value)}
-                        className={baseClass}
-                    />
-                );
-
-            case PreventiveFieldType.NUMBER:
-                return (
-                    <input
-                        type="number"
-                        value={String(value ?? "")}
-                        disabled={disabled || isPending}
-                        onChange={(event) => updateAnswer(field.id, event.target.value)}
-                        className={baseClass}
-                    />
-                );
-
-            case PreventiveFieldType.BOOLEAN:
-                return (
-                    <select
-                        value={String(value ?? "")}
-                        disabled={disabled || isPending}
-                        onChange={(event) => updateAnswer(field.id, event.target.value)}
-                        className={baseClass}
-                    >
-                        <option value="">Sélectionner...</option>
-                        <option value="true">Oui</option>
-                        <option value="false">Non</option>
-                    </select>
-                );
-
-            case PreventiveFieldType.DATE:
-                return (
-                    <input
-                        type="date"
-                        value={String(value ?? "")}
-                        disabled={disabled || isPending}
-                        onChange={(event) => updateAnswer(field.id, event.target.value)}
-                        className={baseClass}
-                    />
-                );
-
-            case PreventiveFieldType.DATETIME:
-                return (
-                    <input
-                        type="datetime-local"
-                        value={String(value ?? "")}
-                        disabled={disabled || isPending}
-                        onChange={(event) => updateAnswer(field.id, event.target.value)}
-                        className={baseClass}
-                    />
-                );
-
-            case PreventiveFieldType.SINGLE_SELECT:
-                return (
-                    <select
-                        value={String(value ?? "")}
-                        disabled={disabled || isPending}
-                        onChange={(event) => updateAnswer(field.id, event.target.value)}
-                        className={baseClass}
-                    >
-                        <option value="">Sélectionner...</option>
-                        {field.options.map((option) => (
-                            <option key={option.id} value={option.id}>
-                                {option.label}
-                            </option>
-                        ))}
-                    </select>
-                );
-
-            case PreventiveFieldType.MULTI_SELECT:
-                return (
-                    <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/50">
-                        {field.options.map((option) => {
-                            const selected = Array.isArray(value)
-                                ? value.includes(option.id)
-                                : false;
-
-                            return (
-                                <label
-                                    key={option.id}
-                                    className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200"
-                                >
-                                    <input
-                                        type="checkbox"
-                                        checked={selected}
-                                        disabled={disabled || isPending}
-                                        onChange={(event) => {
-                                            const current = Array.isArray(value)
-                                                ? value.filter(
-                                                    (item): item is string =>
-                                                        typeof item === "string"
-                                                )
-                                                : [];
-
-                                            updateAnswer(
-                                                field.id,
-                                                event.target.checked
-                                                    ? [...current, option.id]
-                                                    : current.filter(
-                                                        (id) => id !== option.id
-                                                    )
-                                            );
-                                        }}
-                                    />
-                                    {option.label}
-                                </label>
-                            );
-                        })}
-                    </div>
-                );
-
-            case PreventiveFieldType.FILE:
-                return (
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
-                        Le champ fichier n’est pas encore disponible dans cette version.
-                    </div>
-                );
-            case PreventiveFieldType.JSON:
-                return (
-                    <textarea
-                        value={String(value ?? "")}
-                        disabled={disabled || isPending}
-                        rows={5}
-                        onChange={(event) => updateAnswer(field.id, event.target.value)}
-                        className={`${baseClass} font-mono`}
-                    />
-                );
-
-            default:
-                return null;
-        }
-    }
-
     return (
         <div className="space-y-6">
             <section className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
@@ -441,10 +180,10 @@ export function PreventiveCaseEditForm({
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                                Informations du cas
+                                Informations du dossier
                             </h2>
                             <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                                {caseData.templateName} · {caseData.patientName}
+                                {caseData.code} · {caseData.patientName}
                             </p>
                         </div>
 
@@ -455,15 +194,71 @@ export function PreventiveCaseEditForm({
                 </div>
 
                 <div className="grid gap-5 p-5 md:grid-cols-3">
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                            Professionnel
-                        </label>
+                    <Field label="Titre">
+                        <input
+                            value={title}
+                            disabled={disabled || isPending}
+                            onChange={(event) => setTitle(event.target.value)}
+                            className={inputClass}
+                            placeholder="Suivi préventif – Hypertension"
+                        />
+                    </Field>
+
+                    <Field label="Statut">
+                        <select
+                            value={status}
+                            disabled={disabled || isPending}
+                            onChange={(event) =>
+                                setStatus(event.target.value as PreventiveCaseStatus)
+                            }
+                            className={inputClass}
+                        >
+                            {Object.values(PreventiveCaseStatus).map((item) => (
+                                <option key={item} value={item}>
+                                    {statusLabel(item)}
+                                </option>
+                            ))}
+                        </select>
+                    </Field>
+
+                    <Field label="Niveau de risque">
+                        <select
+                            value={riskLevel}
+                            disabled={disabled || isPending}
+                            onChange={(event) => setRiskLevel(event.target.value)}
+                            className={inputClass}
+                        >
+                            <option value="">Non défini</option>
+                            {Object.values(PreventiveRiskLevel).map((item) => (
+                                <option key={item} value={item}>
+                                    {item}
+                                </option>
+                            ))}
+                        </select>
+                    </Field>
+
+                    <Field label="Pathologie">
+                        <select
+                            value={pathologyId}
+                            disabled={disabled || isPending}
+                            onChange={(event) => setPathologyId(event.target.value)}
+                            className={inputClass}
+                        >
+                            <option value="">Cas général</option>
+                            {pathologies.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                    {item.name}
+                                </option>
+                            ))}
+                        </select>
+                    </Field>
+
+                    <Field label="Professionnel responsable">
                         <select
                             value={providerProfileId}
                             disabled={disabled || isPending}
                             onChange={(event) => setProviderProfileId(event.target.value)}
-                            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                            className={inputClass}
                         >
                             <option value="">Non assigné</option>
                             {providers.map((item) => (
@@ -472,17 +267,84 @@ export function PreventiveCaseEditForm({
                                 </option>
                             ))}
                         </select>
-                    </div>
+                    </Field>
 
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                            Unité organisationnelle
-                        </label>
+                    <Field label="Fréquence de suivi">
+                        <select
+                            value={followUpFrequency}
+                            disabled={disabled || isPending}
+                            onChange={(event) => setFollowUpFrequency(event.target.value)}
+                            className={inputClass}
+                        >
+                            <option value="">Non définie</option>
+                            {Object.values(FollowUpFrequency).map((item) => (
+                                <option key={item} value={item}>
+                                    {item}
+                                </option>
+                            ))}
+                        </select>
+                    </Field>
+
+                    <Field label="Intervalle personnalisé">
+                        <input
+                            type="number"
+                            min={0}
+                            value={followUpIntervalDays}
+                            disabled={disabled || isPending}
+                            onChange={(event) => setFollowUpIntervalDays(event.target.value)}
+                            className={inputClass}
+                            placeholder="90"
+                        />
+                    </Field>
+
+                    <Field label="Prochain contrôle manuel">
+                        <input
+                            type="date"
+                            value={nextFollowUpAt}
+                            disabled={disabled || isPending}
+                            onChange={(event) => setNextFollowUpAt(event.target.value)}
+                            className={inputClass}
+                        />
+                    </Field>
+
+                    <Field label="Type de service">
+                        <select
+                            value={serviceTypeId}
+                            disabled={disabled || isPending}
+                            onChange={(event) => setServiceTypeId(event.target.value)}
+                            className={inputClass}
+                        >
+                            <option value="">Non assigné</option>
+                            {serviceTypes.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                    {item.name}
+                                </option>
+                            ))}
+                        </select>
+                    </Field>
+
+                    <Field label="Spécialité">
+                        <select
+                            value={specialtyId}
+                            disabled={disabled || isPending}
+                            onChange={(event) => setSpecialtyId(event.target.value)}
+                            className={inputClass}
+                        >
+                            <option value="">Non assignée</option>
+                            {specialties.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                    {item.name}
+                                </option>
+                            ))}
+                        </select>
+                    </Field>
+
+                    <Field label="Unité organisationnelle">
                         <select
                             value={orgUnitId}
                             disabled={disabled || isPending}
                             onChange={(event) => setOrgUnitId(event.target.value)}
-                            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                            className={inputClass}
                         >
                             <option value="">Non assignée</option>
                             {orgUnits.map((item) => (
@@ -491,17 +353,14 @@ export function PreventiveCaseEditForm({
                                 </option>
                             ))}
                         </select>
-                    </div>
+                    </Field>
 
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                            Lieu / site
-                        </label>
+                    <Field label="Lieu / site">
                         <select
                             value={locationId}
                             disabled={disabled || isPending}
                             onChange={(event) => setLocationId(event.target.value)}
-                            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                            className={inputClass}
                         >
                             <option value="">Non assigné</option>
                             {locations.map((item) => (
@@ -510,7 +369,7 @@ export function PreventiveCaseEditForm({
                                 </option>
                             ))}
                         </select>
-                    </div>
+                    </Field>
 
                     <div className="space-y-2 md:col-span-3">
                         <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
@@ -521,7 +380,7 @@ export function PreventiveCaseEditForm({
                             rows={4}
                             disabled={disabled || isPending}
                             onChange={(event) => setNotes(event.target.value)}
-                            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                            className={inputClass}
                         />
                     </div>
                 </div>
@@ -532,7 +391,7 @@ export function PreventiveCaseEditForm({
                             type="button"
                             disabled={isPending}
                             onClick={handleSaveMeta}
-                            className="cursor-pointer rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
+                            className="cursor-pointer rounded-lg bg-emerald-500/10 px-4 py-3 text-xs font-bold text-emerald-700 transition hover:bg-emerald-500/20 dark:text-emerald-300"
                         >
                             Enregistrer les informations
                         </button>
@@ -540,73 +399,50 @@ export function PreventiveCaseEditForm({
                 )}
             </section>
 
-            {caseData.sections.map((section) => (
-                <section
-                    key={section.id}
-                    className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950"
-                >
-                    <div className="border-b border-slate-200 px-5 py-4 dark:border-slate-800">
-                        <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                            {section.title}
-                        </h2>
-                    </div>
-
-                    <div className="grid gap-5 p-5 md:grid-cols-2">
-                        {section.fields.map((field) => (
-                            <div key={field.id} className="space-y-2">
-                                <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                                    {field.label}
-                                    {field.required && (
-                                        <span className="ml-1 text-rose-500">*</span>
-                                    )}
-                                </label>
-
-                                {renderField(field)}
-
-                                {fieldErrors[field.id] && (
-                                    <p className="text-xs text-rose-600 dark:text-rose-400">
-                                        {fieldErrors[field.id]}
-                                    </p>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                </section>
-            ))}
-
             <div className="sticky bottom-0 z-10 rounded-2xl border border-slate-200 bg-white/90 p-3 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-950/90">
                 <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
                     <button
                         type="button"
-                        onClick={() => router.push("/medical-record/health-promotion/cases")}
+                        onClick={() =>
+                            router.push(`/medical-record/suivi-cases/cases/${caseData.id}`)
+                        }
                         className="cursor-pointer rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                     >
                         Retour
                     </button>
 
                     {!disabled && (
-                        <div className="flex flex-col gap-3 sm:flex-row">
-                            <button
-                                type="button"
-                                disabled={isPending}
-                                onClick={handleSaveAnswers}
-                                className="cursor-pointer rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
-                            >
-                                Enregistrer les réponses
-                            </button>
-
-                            <button
-                                type="button"
-                                disabled={isPending}
-                                onClick={handleComplete}
-                                className="cursor-pointer rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
-                            >
-                                Compléter le cas
-                            </button>
-                        </div>
+                        <button
+                            type="button"
+                            disabled={isPending}
+                            onClick={handleComplete}
+                            className="cursor-pointer rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+                        >
+                            Terminer le dossier
+                        </button>
                     )}
                 </div>
             </div>
+        </div>
+    );
+}
+
+const inputClass =
+    "w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100";
+
+function Field({
+    label,
+    children,
+}: {
+    label: string;
+    children: React.ReactNode;
+}) {
+    return (
+        <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                {label}
+            </label>
+            {children}
         </div>
     );
 }
