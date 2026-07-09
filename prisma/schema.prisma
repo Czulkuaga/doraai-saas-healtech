@@ -57,6 +57,13 @@ enum BPRoleType {
   STAFF
 }
 
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  UNKNOWN
+}
+
 enum NumberRangeObject {
   BUSINESS_PARTNER
   ORG_UNIT
@@ -77,6 +84,49 @@ enum TranslatableEntity {
 enum TranslatableField {
   NAME
   DESCRIPTION
+}
+
+enum AddressType {
+  HOME
+  WORK
+  BILLING
+  OTHER
+}
+
+enum IdentityDocumentType {
+  BELGIAN_EID
+  BELGIAN_KIDS_ID
+  BELGIAN_FOREIGNER_CARD
+  PASSPORT
+  NATIONAL_ID
+  OTHER
+}
+
+enum InsuranceVerificationStatus {
+  UNKNOWN
+  ACTIVE
+  INACTIVE
+  ERROR
+}
+
+enum ExternalSystem {
+  SIMPLYBOOK
+  MYCARENET
+  EHEALTH
+  EID_READER
+  OTHER
+}
+
+enum IntegrationDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum IntegrationSyncStatus {
+  SUCCESS
+  FAILED
+  PARTIAL
+  SKIPPED
 }
 
 // ------------------------------------------------
@@ -324,26 +374,6 @@ model TenantLocale {
   @@unique([tenantId, localeCode])
   @@index([tenantId])
   @@index([localeCode])
-}
-
-model BusinessPartnerRole {
-  id String @id @default(uuid())
-
-  tenantId  String
-  partnerId String
-  role      BPRoleType
-
-  tenant  Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  partner BusinessPartner @relation(fields: [partnerId], references: [id], onDelete: Restrict)
-
-  createdAt DateTime @default(now())
-
-  // Evita duplicados por partner
-  @@unique([tenantId, partnerId, role])
-  // Índices multi-tenant (queries reales)
-  @@index([tenantId, role])
-  @@index([tenantId, partnerId])
-  @@index([role])
 }
 
 model Translation {
@@ -599,6 +629,181 @@ model NumberRange {
   @@index([tenantId])
 }
 
+model BusinessPartnerRole {
+  id String @id @default(uuid())
+
+  tenantId  String
+  partnerId String
+  role      BPRoleType
+
+  tenant  Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  partner BusinessPartner @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  // Evita duplicados por partner
+  @@unique([tenantId, partnerId, role])
+  // Índices multi-tenant (queries reales)
+  @@index([tenantId, role])
+  @@index([tenantId, partnerId])
+  @@index([role])
+}
+
+model BusinessPartnerAddress {
+  id        String @id @default(uuid())
+  tenantId  String
+  partnerId String
+
+  type      AddressType @default(HOME)
+  isPrimary Boolean     @default(true)
+
+  street      String?
+  houseNumber String?
+  box         String?
+  postalCode  String?
+  city        String?
+  region      String?
+  countryCode String?
+
+  rawAddress String?
+
+  partner BusinessPartner @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  country Country?        @relation(fields: [countryCode], references: [code], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([tenantId, partnerId])
+  @@index([tenantId, postalCode])
+  @@index([tenantId, city])
+}
+
+model BusinessPartnerIdentity {
+  id        String @id @default(uuid())
+  tenantId  String
+  partnerId String
+
+  type IdentityDocumentType
+
+  nationalNumber           String?
+  nationalNumberNormalized String?
+
+  cardNumber           String?
+  cardNumberNormalized String?
+
+  issuingCountryCode String?
+  nationalityCode    String?
+
+  validFrom DateTime?
+  expiresAt DateTime?
+
+  readAt DateTime?
+  source String? // EID_READER, MANUAL, IMPORT
+
+  rawData Json?
+
+  partner        BusinessPartner @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  issuingCountry Country?        @relation("IdentityIssuingCountry", fields: [issuingCountryCode], references: [code], onDelete: Restrict)
+  nationality    Country?        @relation("IdentityNationality", fields: [nationalityCode], references: [code], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, type, nationalNumberNormalized])
+  @@index([tenantId])
+  @@index([tenantId, partnerId])
+  @@index([tenantId, nationalNumberNormalized])
+  @@index([tenantId, cardNumberNormalized])
+  @@index([tenantId, expiresAt])
+}
+
+model PatientInsuranceCoverage {
+  id        String @id @default(uuid())
+  tenantId  String
+  patientId String
+
+  status InsuranceVerificationStatus @default(UNKNOWN)
+
+  insurerCode   String?
+  insurerName   String?
+  mutualityCode String?
+  mutualityName String?
+
+  verifiedAt DateTime?
+  validFrom  DateTime?
+  validUntil DateTime?
+
+  source            String? // MYCARENET, MANUAL, IMPORT
+  externalReference String?
+
+  alerts      Json?
+  rawResponse Json?
+
+  patient BusinessPartner @relation(fields: [patientId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([tenantId, patientId])
+  @@index([tenantId, status])
+  @@index([tenantId, verifiedAt])
+  @@index([tenantId, insurerCode])
+}
+
+model BusinessPartnerExternalRef {
+  id        String @id @default(uuid())
+  tenantId  String
+  partnerId String
+
+  system       ExternalSystem
+  externalId   String
+  externalCode String?
+
+  lastSyncedAt DateTime?
+  metadata     Json?
+
+  partner BusinessPartner @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, system, externalId])
+  @@unique([tenantId, partnerId, system])
+  @@index([tenantId])
+  @@index([tenantId, partnerId])
+  @@index([tenantId, system])
+}
+
+model IntegrationSyncLog {
+  id       String @id @default(uuid())
+  tenantId String
+
+  system    ExternalSystem
+  direction IntegrationDirection
+  status    IntegrationSyncStatus
+
+  partnerId String?
+
+  operation String
+  message   String?
+
+  requestPayload  Json?
+  responsePayload Json?
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  partner BusinessPartner? @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([tenantId, system])
+  @@index([tenantId, partnerId])
+  @@index([tenantId, startedAt])
+  @@index([tenantId, status])
+}
+
 // ------------------------------------------------
 // Preventive Medicine (Cases) 
 // ------------------------------------------------
@@ -629,10 +834,10 @@ model PreventiveCase {
   notes     String?
   riskLevel PreventiveRiskLevel?
 
-  followUpFrequency    FollowUpFrequency @default(NONE)
-  followUpIntervalDays Int?
-  nextFollowUpAt       DateTime?
-  lastFollowUpAt DateTime?
+  followUpFrequency       FollowUpFrequency @default(NONE)
+  followUpIntervalDays    Int?
+  nextFollowUpAt          DateTime?
+  lastFollowUpAt          DateTime?
   nextAutomaticFollowUpAt DateTime?
 
   tenant  Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
@@ -950,7 +1155,21 @@ model BusinessPartner {
 
   birthDate DateTime?
 
+  gender                Gender?
+  nationalityCode       String?
+  preferredLanguageCode String?
+
+  deceasedAt DateTime?
+
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  nationality       Country? @relation("BPNationality", fields: [nationalityCode], references: [code], onDelete: Restrict)
+  preferredLanguage Locale?  @relation("BPPreferredLanguage", fields: [preferredLanguageCode], references: [code], onDelete: Restrict)
+
+  addresses          BusinessPartnerAddress[]
+  identities         BusinessPartnerIdentity[]
+  insuranceCoverages PatientInsuranceCoverage[]
+  externalRefs       BusinessPartnerExternalRef[]
 
   roles                    BusinessPartnerRole[]
   identifiers              PartnerIdentifier[]
@@ -961,15 +1180,19 @@ model BusinessPartner {
   patientPathologies       PatientPathology[]
   campaignRecipients       PreventiveCampaignRecipient[]
   preventiveTimelineEvents PreventiveTimelineEvent[]
+  syncLogs                 IntegrationSyncLog[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  localeCode String?
 
   @@unique([tenantId, code])
   @@index([tenantId])
   @@index([tenantId, email])
   @@index([tenantId, phone])
   @@index([tenantId, code])
+  @@index([tenantId, birthDate])
+  @@index([tenantId, gender])
 }
 
 // ------------------------------------------------
@@ -1020,16 +1243,17 @@ model PartnerIdentifier {
 // Usa códigos tipo: es-ES, fr-BE, nl-BE, de-DE, it-IT, pt-PT.
 
 model Locale {
-  code     String  @id // "es-ES", "fr-BE", "nl-BE"
-  language String // "es", "fr", "nl"
-  region   String? // "ES", "BE", "DE"
-  name     String // "Español (España)"
+  code     String  @id
+  language String
+  region   String?
+  name     String
   isActive Boolean @default(true)
 
   tenantsDefault   Tenant[]       @relation("TenantDefaultLocale")
   tenantsSupported TenantLocale[]
-  // userPreferences  UserPreference[]
   translations     Translation[]
+
+  businessPartnersPreferredLanguage BusinessPartner[] @relation("BPPreferredLanguage")
 }
 
 // Zona horaria (IANA)
@@ -1061,7 +1285,7 @@ model Currency {
 // País (ISO 3166-1 alpha-2)
 
 model Country {
-  code     String  @id // "BE"
+  code     String  @id
   name     String
   euMember Boolean @default(false)
   isActive Boolean @default(true)
@@ -1072,6 +1296,13 @@ model Country {
   tenants            Tenant[]
   locations          Location[]
   partnerIdentifiers PartnerIdentifier[]
+
+  businessPartnerAddresses BusinessPartnerAddress[]
+
+  businessPartnerNationalities BusinessPartner[] @relation("BPNationality")
+
+  identityIssuingCountries BusinessPartnerIdentity[] @relation("IdentityIssuingCountry")
+  identityNationalities    BusinessPartnerIdentity[] @relation("IdentityNationality")
 
   @@index([currencyCode])
 }
