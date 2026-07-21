@@ -138,6 +138,7 @@ enum ExternalCustomerLinkStatus {
 
 enum IntegrationOperation {
   GET_TOKEN
+  DISCONNECT
 
   SEARCH_CUSTOMER
   CREATE_CUSTOMER

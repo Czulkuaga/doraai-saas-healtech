@@ -749,6 +749,8 @@ export async function refreshPersistedSimplyBookToken(
 export async function disconnectSimplyBook(
     tenantId: string
 ): Promise<void> {
+    const startedAt = new Date();
+
     const connection =
         await prisma.integrationConnection.findUnique({
             where: {
@@ -760,14 +762,30 @@ export async function disconnectSimplyBook(
         });
 
     if (!connection) {
+        await prisma.integrationSyncLog.create({
+            data: {
+                tenantId,
+                system: ExternalSystem.SIMPLYBOOK,
+                direction: IntegrationDirection.OUTBOUND,
+                operation: IntegrationOperation.DISCONNECT,
+                status: IntegrationSyncStatus.SKIPPED,
+                message:
+                    "No existe una conexión SimplyBook configurada para desconectar.",
+                startedAt,
+                finishedAt: new Date(),
+            },
+        });
+
         return;
     }
 
-    if (
-        connection.apiBaseUrl &&
-        connection.accessTokenEncrypted
-    ) {
-        try {
+    let remoteLogoutSucceeded = false;
+
+    try {
+        if (
+            connection.apiBaseUrl &&
+            connection.accessTokenEncrypted
+        ) {
             await logoutSimplyBookAdmin(
                 connection.apiBaseUrl,
                 {
@@ -777,26 +795,99 @@ export async function disconnectSimplyBook(
                         ),
                 }
             );
-        } catch (error) {
-            console.error(
-                "[disconnectSimplyBook][logout]",
-                error
-            );
-        }
-    }
 
-    await prisma.integrationConnection.update({
-        where: {
-            id: connection.id,
-        },
-        data: {
-            status:
-                IntegrationConnectionStatus.DISABLED,
-            accessTokenEncrypted: null,
-            refreshTokenEncrypted: null,
-            authSessionId: null,
-            require2fa: false,
-            allowed2faProviders: Prisma.JsonNull,
-        },
-    });
+            remoteLogoutSucceeded = true;
+        }
+
+        await prisma.$transaction([
+            prisma.integrationConnection.update({
+                where: {
+                    id: connection.id,
+                },
+                data: {
+                    status:
+                        IntegrationConnectionStatus.DISABLED,
+
+                    accessTokenEncrypted: null,
+                    refreshTokenEncrypted: null,
+
+                    authSessionId: null,
+                    require2fa: false,
+                    allowed2faProviders:
+                        Prisma.JsonNull,
+
+                    lastValidatedAt: null,
+                },
+            }),
+
+            prisma.integrationSyncLog.create({
+                data: {
+                    tenantId,
+                    system: ExternalSystem.SIMPLYBOOK,
+                    direction:
+                        IntegrationDirection.OUTBOUND,
+                    operation:
+                        IntegrationOperation.DISCONNECT,
+                    status:
+                        IntegrationSyncStatus.SUCCESS,
+                    message:
+                        "Connexion SimplyBook déconnectée correctement.",
+
+                    requestPayload: {
+                        companyLogin:
+                            connection.companyLogin,
+                        userLogin:
+                            connection.userLogin,
+                    },
+
+                    responsePayload: {
+                        remoteLogoutSucceeded,
+                        localConnectionDisabled: true,
+                    },
+
+                    startedAt,
+                    finishedAt: new Date(),
+                },
+            }),
+        ]);
+    } catch (error) {
+        const message =
+            error instanceof Error
+                ? error.message
+                : "Erreur inconnue lors de la déconnexion SimplyBook.";
+
+        await prisma.integrationSyncLog
+            .create({
+                data: {
+                    tenantId,
+                    system:
+                        ExternalSystem.SIMPLYBOOK,
+                    direction:
+                        IntegrationDirection.OUTBOUND,
+                    operation:
+                        IntegrationOperation.DISCONNECT,
+                    status:
+                        IntegrationSyncStatus.FAILED,
+                    message,
+
+                    requestPayload: {
+                        companyLogin:
+                            connection.companyLogin,
+                        userLogin:
+                            connection.userLogin,
+                    },
+
+                    startedAt,
+                    finishedAt: new Date(),
+                },
+            })
+            .catch((logError) => {
+                console.error(
+                    "[disconnectSimplyBook][log]",
+                    logError
+                );
+            });
+
+        throw error;
+    }
 }
