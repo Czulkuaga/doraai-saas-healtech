@@ -129,6 +129,46 @@ enum IntegrationSyncStatus {
   SKIPPED
 }
 
+enum ExternalCustomerLinkStatus {
+  ACTIVE
+  NOT_FOUND
+  AMBIGUOUS
+  DISABLED
+}
+
+enum IntegrationOperation {
+  GET_TOKEN
+
+  SEARCH_CUSTOMER
+  CREATE_CUSTOMER
+  UPDATE_CUSTOMER
+
+  SEARCH_APPOINTMENT
+  CREATE_APPOINTMENT
+  UPDATE_APPOINTMENT
+  CANCEL_APPOINTMENT
+
+  VERIFY_INSURANCE
+  READ_IDENTITY
+}
+
+enum IntegrationConnectionStatus {
+  NOT_CONFIGURED
+  CONNECTING
+  CONNECTED
+  TWO_FACTOR_REQUIRED
+  EXPIRED
+  ERROR
+  DISABLED
+}
+
+enum IntegrationAuthType {
+  API_USER_KEY
+  USER_PASSWORD
+  OAUTH2
+  CUSTOM
+}
+
 // ------------------------------------------------
 // Preventive Medicine (Transactional / Template-driven)
 // ------------------------------------------------
@@ -699,13 +739,20 @@ model BusinessPartnerIdentity {
   expiresAt DateTime?
 
   readAt DateTime?
-  source String? // EID_READER, MANUAL, IMPORT
+  source String?
 
   rawData Json?
+
+  isActive Boolean @default(true)
+
+  replacesId String?
 
   partner        BusinessPartner @relation(fields: [partnerId], references: [id], onDelete: Restrict)
   issuingCountry Country?        @relation("IdentityIssuingCountry", fields: [issuingCountryCode], references: [code], onDelete: Restrict)
   nationality    Country?        @relation("IdentityNationality", fields: [nationalityCode], references: [code], onDelete: Restrict)
+
+  replaces   BusinessPartnerIdentity?  @relation("IdentityReplacement", fields: [replacesId], references: [id], onDelete: Restrict)
+  replacedBy BusinessPartnerIdentity[] @relation("IdentityReplacement")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -716,6 +763,8 @@ model BusinessPartnerIdentity {
   @@index([tenantId, nationalNumberNormalized])
   @@index([tenantId, cardNumberNormalized])
   @@index([tenantId, expiresAt])
+  @@index([tenantId, isActive])
+  @@index([tenantId, replacesId])
 }
 
 model PatientInsuranceCoverage {
@@ -776,6 +825,10 @@ model BusinessPartnerExternalRef {
   @@index([tenantId, system])
 }
 
+// ------------------------------------------------
+// Integrations
+// ------------------------------------------------
+
 model IntegrationSyncLog {
   id       String @id @default(uuid())
   tenantId String
@@ -786,7 +839,7 @@ model IntegrationSyncLog {
 
   partnerId String?
 
-  operation String
+  operation IntegrationOperation
   message   String?
 
   requestPayload  Json?
@@ -802,6 +855,85 @@ model IntegrationSyncLog {
   @@index([tenantId, partnerId])
   @@index([tenantId, startedAt])
   @@index([tenantId, status])
+}
+
+model ExternalCustomerLink {
+  id       String @id @default(uuid())
+  tenantId String
+
+  partnerId String
+  partner   BusinessPartner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  system ExternalSystem
+
+  externalId String?
+
+  status ExternalCustomerLinkStatus @default(ACTIVE)
+
+  lastMatchedAt DateTime?
+  lastSyncedAt  DateTime?
+
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, partnerId, system])
+  @@index([tenantId, system, externalId])
+  @@index([tenantId, status])
+}
+
+model IntegrationConnection {
+  id       String @id @default(uuid())
+  tenantId String
+
+  system   ExternalSystem
+  authType IntegrationAuthType
+
+  status IntegrationConnectionStatus @default(NOT_CONFIGURED)
+
+  displayName String?
+
+  // Datos no sensibles
+  companyLogin String?
+  userLogin    String?
+  apiBaseUrl   String?
+  domain       String?
+
+  // Credencial permanente cifrada
+  apiUserKeyEncrypted String?
+  passwordEncrypted   String?
+
+  // Tokens temporales cifrados
+  accessTokenEncrypted  String?
+  refreshTokenEncrypted String?
+
+  // Identificador persistente para refresh
+  deviceTokenEncrypted String?
+
+  // Datos de 2FA
+  require2fa          Boolean @default(false)
+  authSessionId       String?
+  allowed2faProviders Json?
+
+  connectedAt       DateTime?
+  lastValidatedAt   DateTime?
+  lastAuthAttemptAt DateTime?
+  lastRefreshAt     DateTime?
+
+  lastErrorAt      DateTime?
+  lastErrorCode    String?
+  lastErrorMessage String?
+
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, system])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, system, status])
 }
 
 // ------------------------------------------------
@@ -1166,13 +1298,14 @@ model BusinessPartner {
   nationality       Country? @relation("BPNationality", fields: [nationalityCode], references: [code], onDelete: Restrict)
   preferredLanguage Locale?  @relation("BPPreferredLanguage", fields: [preferredLanguageCode], references: [code], onDelete: Restrict)
 
-  addresses          BusinessPartnerAddress[]
-  identities         BusinessPartnerIdentity[]
-  insuranceCoverages PatientInsuranceCoverage[]
-  externalRefs       BusinessPartnerExternalRef[]
+  addresses             BusinessPartnerAddress[]
+  identities            BusinessPartnerIdentity[]
+  insuranceCoverages    PatientInsuranceCoverage[]
+  externalRefs          BusinessPartnerExternalRef[]
+  integrationSyncLogs   IntegrationSyncLog[]
+  externalCustomerLinks ExternalCustomerLink[]
 
   roles                    BusinessPartnerRole[]
-  identifiers              PartnerIdentifier[]
   providerProfile          ProviderProfile?
   preventiveCases          PreventiveCase[]
   preventiveFollowUps      PreventiveFollowUp[]
@@ -1180,7 +1313,6 @@ model BusinessPartner {
   patientPathologies       PatientPathology[]
   campaignRecipients       PreventiveCampaignRecipient[]
   preventiveTimelineEvents PreventiveTimelineEvent[]
-  syncLogs                 IntegrationSyncLog[]
 
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -1215,28 +1347,6 @@ model ServiceType {
 
   @@unique([tenantId, code])
   @@index([tenantId])
-}
-
-model PartnerIdentifier {
-  id        String @id @default(uuid())
-  tenantId  String
-  partnerId String
-
-  type        String // "DNI", "NIF", "SSN", "PASSPORT", etc.
-  value       String
-  countryCode String?
-
-  partner BusinessPartner @relation(fields: [partnerId], references: [id], onDelete: Restrict)
-  country Country?        @relation(fields: [countryCode], references: [code], onDelete: Restrict)
-
-  createdAt DateTime @default(now())
-
-  // Un identificador puede existir en varios tenants (multi-clínica) sin romper BD
-  @@unique([tenantId, type, value])
-  @@index([partnerId])
-  @@index([tenantId, type, value])
-  @@index([countryCode])
-  @@index([tenantId, value])
 }
 
 // Idioma / Locale (BCP-47)
@@ -1293,9 +1403,8 @@ model Country {
   currencyCode String
   currency     Currency @relation(fields: [currencyCode], references: [code], onDelete: Restrict)
 
-  tenants            Tenant[]
-  locations          Location[]
-  partnerIdentifiers PartnerIdentifier[]
+  tenants   Tenant[]
+  locations Location[]
 
   businessPartnerAddresses BusinessPartnerAddress[]
 

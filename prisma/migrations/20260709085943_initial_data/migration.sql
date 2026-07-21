@@ -14,6 +14,9 @@ CREATE TYPE "PartnerType" AS ENUM ('PERSON', 'ORGANIZATION');
 CREATE TYPE "BPRoleType" AS ENUM ('PATIENT', 'GUARDIAN', 'EMERGENCY_CONTACT', 'PROVIDER', 'REFERRING_PROVIDER', 'INSURER', 'PAYER', 'SUPPLIER', 'LABORATORY', 'PHARMACY', 'CONTACT', 'STAFF');
 
 -- CreateEnum
+CREATE TYPE "Gender" AS ENUM ('MALE', 'FEMALE', 'OTHER', 'UNKNOWN');
+
+-- CreateEnum
 CREATE TYPE "NumberRangeObject" AS ENUM ('BUSINESS_PARTNER', 'ORG_UNIT', 'LOCATION', 'APPOINTMENT', 'PREVENTIVE_CASE', 'PREVENTIVE_FOLLOW_UP', 'PREVENTIVE_CAMPAIGN');
 
 -- CreateEnum
@@ -21,6 +24,24 @@ CREATE TYPE "TranslatableEntity" AS ENUM ('SPECIALTY', 'SERVICE_TYPE', 'ORG_UNIT
 
 -- CreateEnum
 CREATE TYPE "TranslatableField" AS ENUM ('NAME', 'DESCRIPTION');
+
+-- CreateEnum
+CREATE TYPE "AddressType" AS ENUM ('HOME', 'WORK', 'BILLING', 'OTHER');
+
+-- CreateEnum
+CREATE TYPE "IdentityDocumentType" AS ENUM ('BELGIAN_EID', 'BELGIAN_KIDS_ID', 'BELGIAN_FOREIGNER_CARD', 'PASSPORT', 'NATIONAL_ID', 'OTHER');
+
+-- CreateEnum
+CREATE TYPE "InsuranceVerificationStatus" AS ENUM ('UNKNOWN', 'ACTIVE', 'INACTIVE', 'ERROR');
+
+-- CreateEnum
+CREATE TYPE "ExternalSystem" AS ENUM ('SIMPLYBOOK', 'MYCARENET', 'EHEALTH', 'EID_READER', 'OTHER');
+
+-- CreateEnum
+CREATE TYPE "IntegrationDirection" AS ENUM ('INBOUND', 'OUTBOUND');
+
+-- CreateEnum
+CREATE TYPE "IntegrationSyncStatus" AS ENUM ('SUCCESS', 'FAILED', 'PARTIAL', 'SKIPPED');
 
 -- CreateEnum
 CREATE TYPE "PreventiveCaseStatus" AS ENUM ('OPEN', 'ACTIVE', 'ON_HOLD', 'COMPLETED', 'CANCELLED');
@@ -115,17 +136,6 @@ CREATE TABLE "TenantLocale" (
     "isActive" BOOLEAN NOT NULL DEFAULT true,
 
     CONSTRAINT "TenantLocale_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "BusinessPartnerRole" (
-    "id" TEXT NOT NULL,
-    "tenantId" TEXT NOT NULL,
-    "partnerId" TEXT NOT NULL,
-    "role" "BPRoleType" NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "BusinessPartnerRole_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -300,6 +310,120 @@ CREATE TABLE "NumberRange" (
 );
 
 -- CreateTable
+CREATE TABLE "BusinessPartnerRole" (
+    "id" TEXT NOT NULL,
+    "tenantId" TEXT NOT NULL,
+    "partnerId" TEXT NOT NULL,
+    "role" "BPRoleType" NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "BusinessPartnerRole_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "BusinessPartnerAddress" (
+    "id" TEXT NOT NULL,
+    "tenantId" TEXT NOT NULL,
+    "partnerId" TEXT NOT NULL,
+    "type" "AddressType" NOT NULL DEFAULT 'HOME',
+    "isPrimary" BOOLEAN NOT NULL DEFAULT true,
+    "street" TEXT,
+    "houseNumber" TEXT,
+    "box" TEXT,
+    "postalCode" TEXT,
+    "city" TEXT,
+    "region" TEXT,
+    "countryCode" TEXT,
+    "rawAddress" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "BusinessPartnerAddress_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "BusinessPartnerIdentity" (
+    "id" TEXT NOT NULL,
+    "tenantId" TEXT NOT NULL,
+    "partnerId" TEXT NOT NULL,
+    "type" "IdentityDocumentType" NOT NULL,
+    "nationalNumber" TEXT,
+    "nationalNumberNormalized" TEXT,
+    "cardNumber" TEXT,
+    "cardNumberNormalized" TEXT,
+    "issuingCountryCode" TEXT,
+    "nationalityCode" TEXT,
+    "validFrom" TIMESTAMP(3),
+    "expiresAt" TIMESTAMP(3),
+    "readAt" TIMESTAMP(3),
+    "source" TEXT,
+    "rawData" JSONB,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "replacesId" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "BusinessPartnerIdentity_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "PatientInsuranceCoverage" (
+    "id" TEXT NOT NULL,
+    "tenantId" TEXT NOT NULL,
+    "patientId" TEXT NOT NULL,
+    "status" "InsuranceVerificationStatus" NOT NULL DEFAULT 'UNKNOWN',
+    "insurerCode" TEXT,
+    "insurerName" TEXT,
+    "mutualityCode" TEXT,
+    "mutualityName" TEXT,
+    "verifiedAt" TIMESTAMP(3),
+    "validFrom" TIMESTAMP(3),
+    "validUntil" TIMESTAMP(3),
+    "source" TEXT,
+    "externalReference" TEXT,
+    "alerts" JSONB,
+    "rawResponse" JSONB,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "PatientInsuranceCoverage_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "BusinessPartnerExternalRef" (
+    "id" TEXT NOT NULL,
+    "tenantId" TEXT NOT NULL,
+    "partnerId" TEXT NOT NULL,
+    "system" "ExternalSystem" NOT NULL,
+    "externalId" TEXT NOT NULL,
+    "externalCode" TEXT,
+    "lastSyncedAt" TIMESTAMP(3),
+    "metadata" JSONB,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "BusinessPartnerExternalRef_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "IntegrationSyncLog" (
+    "id" TEXT NOT NULL,
+    "tenantId" TEXT NOT NULL,
+    "system" "ExternalSystem" NOT NULL,
+    "direction" "IntegrationDirection" NOT NULL,
+    "status" "IntegrationSyncStatus" NOT NULL,
+    "partnerId" TEXT,
+    "operation" TEXT NOT NULL,
+    "message" TEXT,
+    "requestPayload" JSONB,
+    "responsePayload" JSONB,
+    "startedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "finishedAt" TIMESTAMP(3),
+
+    CONSTRAINT "IntegrationSyncLog_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "PreventiveCase" (
     "id" TEXT NOT NULL,
     "tenantId" TEXT NOT NULL,
@@ -321,6 +445,8 @@ CREATE TABLE "PreventiveCase" (
     "followUpFrequency" "FollowUpFrequency" NOT NULL DEFAULT 'NONE',
     "followUpIntervalDays" INTEGER,
     "nextFollowUpAt" TIMESTAMP(3),
+    "lastFollowUpAt" TIMESTAMP(3),
+    "nextAutomaticFollowUpAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -480,8 +606,13 @@ CREATE TABLE "BusinessPartner" (
     "phone" TEXT,
     "phoneNormalized" TEXT,
     "birthDate" TIMESTAMP(3),
+    "gender" "Gender",
+    "nationalityCode" TEXT,
+    "preferredLanguageCode" TEXT,
+    "deceasedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "localeCode" TEXT,
 
     CONSTRAINT "BusinessPartner_pkey" PRIMARY KEY ("id")
 );
@@ -496,19 +627,6 @@ CREATE TABLE "ServiceType" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "ServiceType_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "PartnerIdentifier" (
-    "id" TEXT NOT NULL,
-    "tenantId" TEXT NOT NULL,
-    "partnerId" TEXT NOT NULL,
-    "type" TEXT NOT NULL,
-    "value" TEXT NOT NULL,
-    "countryCode" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "PartnerIdentifier_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -597,18 +715,6 @@ CREATE INDEX "TenantLocale_localeCode_idx" ON "TenantLocale"("localeCode");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "TenantLocale_tenantId_localeCode_key" ON "TenantLocale"("tenantId", "localeCode");
-
--- CreateIndex
-CREATE INDEX "BusinessPartnerRole_tenantId_role_idx" ON "BusinessPartnerRole"("tenantId", "role");
-
--- CreateIndex
-CREATE INDEX "BusinessPartnerRole_tenantId_partnerId_idx" ON "BusinessPartnerRole"("tenantId", "partnerId");
-
--- CreateIndex
-CREATE INDEX "BusinessPartnerRole_role_idx" ON "BusinessPartnerRole"("role");
-
--- CreateIndex
-CREATE UNIQUE INDEX "BusinessPartnerRole_tenantId_partnerId_role_key" ON "BusinessPartnerRole"("tenantId", "partnerId", "role");
 
 -- CreateIndex
 CREATE INDEX "Translation_entity_entityId_idx" ON "Translation"("entity", "entityId");
@@ -729,6 +835,99 @@ CREATE INDEX "NumberRange_tenantId_idx" ON "NumberRange"("tenantId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "NumberRange_tenantId_object_key" ON "NumberRange"("tenantId", "object");
+
+-- CreateIndex
+CREATE INDEX "BusinessPartnerRole_tenantId_role_idx" ON "BusinessPartnerRole"("tenantId", "role");
+
+-- CreateIndex
+CREATE INDEX "BusinessPartnerRole_tenantId_partnerId_idx" ON "BusinessPartnerRole"("tenantId", "partnerId");
+
+-- CreateIndex
+CREATE INDEX "BusinessPartnerRole_role_idx" ON "BusinessPartnerRole"("role");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "BusinessPartnerRole_tenantId_partnerId_role_key" ON "BusinessPartnerRole"("tenantId", "partnerId", "role");
+
+-- CreateIndex
+CREATE INDEX "BusinessPartnerAddress_tenantId_idx" ON "BusinessPartnerAddress"("tenantId");
+
+-- CreateIndex
+CREATE INDEX "BusinessPartnerAddress_tenantId_partnerId_idx" ON "BusinessPartnerAddress"("tenantId", "partnerId");
+
+-- CreateIndex
+CREATE INDEX "BusinessPartnerAddress_tenantId_postalCode_idx" ON "BusinessPartnerAddress"("tenantId", "postalCode");
+
+-- CreateIndex
+CREATE INDEX "BusinessPartnerAddress_tenantId_city_idx" ON "BusinessPartnerAddress"("tenantId", "city");
+
+-- CreateIndex
+CREATE INDEX "BusinessPartnerIdentity_tenantId_idx" ON "BusinessPartnerIdentity"("tenantId");
+
+-- CreateIndex
+CREATE INDEX "BusinessPartnerIdentity_tenantId_partnerId_idx" ON "BusinessPartnerIdentity"("tenantId", "partnerId");
+
+-- CreateIndex
+CREATE INDEX "BusinessPartnerIdentity_tenantId_nationalNumberNormalized_idx" ON "BusinessPartnerIdentity"("tenantId", "nationalNumberNormalized");
+
+-- CreateIndex
+CREATE INDEX "BusinessPartnerIdentity_tenantId_cardNumberNormalized_idx" ON "BusinessPartnerIdentity"("tenantId", "cardNumberNormalized");
+
+-- CreateIndex
+CREATE INDEX "BusinessPartnerIdentity_tenantId_expiresAt_idx" ON "BusinessPartnerIdentity"("tenantId", "expiresAt");
+
+-- CreateIndex
+CREATE INDEX "BusinessPartnerIdentity_tenantId_isActive_idx" ON "BusinessPartnerIdentity"("tenantId", "isActive");
+
+-- CreateIndex
+CREATE INDEX "BusinessPartnerIdentity_tenantId_replacesId_idx" ON "BusinessPartnerIdentity"("tenantId", "replacesId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "BusinessPartnerIdentity_tenantId_type_nationalNumberNormali_key" ON "BusinessPartnerIdentity"("tenantId", "type", "nationalNumberNormalized");
+
+-- CreateIndex
+CREATE INDEX "PatientInsuranceCoverage_tenantId_idx" ON "PatientInsuranceCoverage"("tenantId");
+
+-- CreateIndex
+CREATE INDEX "PatientInsuranceCoverage_tenantId_patientId_idx" ON "PatientInsuranceCoverage"("tenantId", "patientId");
+
+-- CreateIndex
+CREATE INDEX "PatientInsuranceCoverage_tenantId_status_idx" ON "PatientInsuranceCoverage"("tenantId", "status");
+
+-- CreateIndex
+CREATE INDEX "PatientInsuranceCoverage_tenantId_verifiedAt_idx" ON "PatientInsuranceCoverage"("tenantId", "verifiedAt");
+
+-- CreateIndex
+CREATE INDEX "PatientInsuranceCoverage_tenantId_insurerCode_idx" ON "PatientInsuranceCoverage"("tenantId", "insurerCode");
+
+-- CreateIndex
+CREATE INDEX "BusinessPartnerExternalRef_tenantId_idx" ON "BusinessPartnerExternalRef"("tenantId");
+
+-- CreateIndex
+CREATE INDEX "BusinessPartnerExternalRef_tenantId_partnerId_idx" ON "BusinessPartnerExternalRef"("tenantId", "partnerId");
+
+-- CreateIndex
+CREATE INDEX "BusinessPartnerExternalRef_tenantId_system_idx" ON "BusinessPartnerExternalRef"("tenantId", "system");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "BusinessPartnerExternalRef_tenantId_system_externalId_key" ON "BusinessPartnerExternalRef"("tenantId", "system", "externalId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "BusinessPartnerExternalRef_tenantId_partnerId_system_key" ON "BusinessPartnerExternalRef"("tenantId", "partnerId", "system");
+
+-- CreateIndex
+CREATE INDEX "IntegrationSyncLog_tenantId_idx" ON "IntegrationSyncLog"("tenantId");
+
+-- CreateIndex
+CREATE INDEX "IntegrationSyncLog_tenantId_system_idx" ON "IntegrationSyncLog"("tenantId", "system");
+
+-- CreateIndex
+CREATE INDEX "IntegrationSyncLog_tenantId_partnerId_idx" ON "IntegrationSyncLog"("tenantId", "partnerId");
+
+-- CreateIndex
+CREATE INDEX "IntegrationSyncLog_tenantId_startedAt_idx" ON "IntegrationSyncLog"("tenantId", "startedAt");
+
+-- CreateIndex
+CREATE INDEX "IntegrationSyncLog_tenantId_status_idx" ON "IntegrationSyncLog"("tenantId", "status");
 
 -- CreateIndex
 CREATE INDEX "PreventiveCase_tenantId_idx" ON "PreventiveCase"("tenantId");
@@ -902,6 +1101,12 @@ CREATE INDEX "BusinessPartner_tenantId_phone_idx" ON "BusinessPartner"("tenantId
 CREATE INDEX "BusinessPartner_tenantId_code_idx" ON "BusinessPartner"("tenantId", "code");
 
 -- CreateIndex
+CREATE INDEX "BusinessPartner_tenantId_birthDate_idx" ON "BusinessPartner"("tenantId", "birthDate");
+
+-- CreateIndex
+CREATE INDEX "BusinessPartner_tenantId_gender_idx" ON "BusinessPartner"("tenantId", "gender");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "BusinessPartner_tenantId_code_key" ON "BusinessPartner"("tenantId", "code");
 
 -- CreateIndex
@@ -909,21 +1114,6 @@ CREATE INDEX "ServiceType_tenantId_idx" ON "ServiceType"("tenantId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "ServiceType_tenantId_code_key" ON "ServiceType"("tenantId", "code");
-
--- CreateIndex
-CREATE INDEX "PartnerIdentifier_partnerId_idx" ON "PartnerIdentifier"("partnerId");
-
--- CreateIndex
-CREATE INDEX "PartnerIdentifier_tenantId_type_value_idx" ON "PartnerIdentifier"("tenantId", "type", "value");
-
--- CreateIndex
-CREATE INDEX "PartnerIdentifier_countryCode_idx" ON "PartnerIdentifier"("countryCode");
-
--- CreateIndex
-CREATE INDEX "PartnerIdentifier_tenantId_value_idx" ON "PartnerIdentifier"("tenantId", "value");
-
--- CreateIndex
-CREATE UNIQUE INDEX "PartnerIdentifier_tenantId_type_value_key" ON "PartnerIdentifier"("tenantId", "type", "value");
 
 -- CreateIndex
 CREATE INDEX "Country_currencyCode_idx" ON "Country"("currencyCode");
@@ -963,12 +1153,6 @@ ALTER TABLE "TenantLocale" ADD CONSTRAINT "TenantLocale_tenantId_fkey" FOREIGN K
 
 -- AddForeignKey
 ALTER TABLE "TenantLocale" ADD CONSTRAINT "TenantLocale_localeCode_fkey" FOREIGN KEY ("localeCode") REFERENCES "Locale"("code") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "BusinessPartnerRole" ADD CONSTRAINT "BusinessPartnerRole_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "BusinessPartnerRole" ADD CONSTRAINT "BusinessPartnerRole_partnerId_fkey" FOREIGN KEY ("partnerId") REFERENCES "BusinessPartner"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Translation" ADD CONSTRAINT "Translation_localeCode_fkey" FOREIGN KEY ("localeCode") REFERENCES "Locale"("code") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -1023,6 +1207,39 @@ ALTER TABLE "AuthEvent" ADD CONSTRAINT "AuthEvent_userId_fkey" FOREIGN KEY ("use
 
 -- AddForeignKey
 ALTER TABLE "NumberRange" ADD CONSTRAINT "NumberRange_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "BusinessPartnerRole" ADD CONSTRAINT "BusinessPartnerRole_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "BusinessPartnerRole" ADD CONSTRAINT "BusinessPartnerRole_partnerId_fkey" FOREIGN KEY ("partnerId") REFERENCES "BusinessPartner"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "BusinessPartnerAddress" ADD CONSTRAINT "BusinessPartnerAddress_partnerId_fkey" FOREIGN KEY ("partnerId") REFERENCES "BusinessPartner"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "BusinessPartnerAddress" ADD CONSTRAINT "BusinessPartnerAddress_countryCode_fkey" FOREIGN KEY ("countryCode") REFERENCES "Country"("code") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "BusinessPartnerIdentity" ADD CONSTRAINT "BusinessPartnerIdentity_partnerId_fkey" FOREIGN KEY ("partnerId") REFERENCES "BusinessPartner"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "BusinessPartnerIdentity" ADD CONSTRAINT "BusinessPartnerIdentity_issuingCountryCode_fkey" FOREIGN KEY ("issuingCountryCode") REFERENCES "Country"("code") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "BusinessPartnerIdentity" ADD CONSTRAINT "BusinessPartnerIdentity_nationalityCode_fkey" FOREIGN KEY ("nationalityCode") REFERENCES "Country"("code") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "BusinessPartnerIdentity" ADD CONSTRAINT "BusinessPartnerIdentity_replacesId_fkey" FOREIGN KEY ("replacesId") REFERENCES "BusinessPartnerIdentity"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PatientInsuranceCoverage" ADD CONSTRAINT "PatientInsuranceCoverage_patientId_fkey" FOREIGN KEY ("patientId") REFERENCES "BusinessPartner"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "BusinessPartnerExternalRef" ADD CONSTRAINT "BusinessPartnerExternalRef_partnerId_fkey" FOREIGN KEY ("partnerId") REFERENCES "BusinessPartner"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "IntegrationSyncLog" ADD CONSTRAINT "IntegrationSyncLog_partnerId_fkey" FOREIGN KEY ("partnerId") REFERENCES "BusinessPartner"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "PreventiveCase" ADD CONSTRAINT "PreventiveCase_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -1130,13 +1347,13 @@ ALTER TABLE "PatientPathology" ADD CONSTRAINT "PatientPathology_pathologyId_fkey
 ALTER TABLE "BusinessPartner" ADD CONSTRAINT "BusinessPartner_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "BusinessPartner" ADD CONSTRAINT "BusinessPartner_nationalityCode_fkey" FOREIGN KEY ("nationalityCode") REFERENCES "Country"("code") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "BusinessPartner" ADD CONSTRAINT "BusinessPartner_preferredLanguageCode_fkey" FOREIGN KEY ("preferredLanguageCode") REFERENCES "Locale"("code") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "ServiceType" ADD CONSTRAINT "ServiceType_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "PartnerIdentifier" ADD CONSTRAINT "PartnerIdentifier_partnerId_fkey" FOREIGN KEY ("partnerId") REFERENCES "BusinessPartner"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "PartnerIdentifier" ADD CONSTRAINT "PartnerIdentifier_countryCode_fkey" FOREIGN KEY ("countryCode") REFERENCES "Country"("code") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Country" ADD CONSTRAINT "Country_currencyCode_fkey" FOREIGN KEY ("currencyCode") REFERENCES "Currency"("code") ON DELETE RESTRICT ON UPDATE CASCADE;

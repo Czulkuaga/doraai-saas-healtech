@@ -36,7 +36,7 @@ export default async function PatientDetailsPage({ params }: Props) {
     if (!item) notFound();
 
     return (
-        <div className="space-y-6">
+        <div className="w-full max-w-full overflow-x-hidden space-y-6 pb-24">
 
             <PatientClinicalHeader
                 patient={item}
@@ -49,10 +49,12 @@ export default async function PatientDetailsPage({ params }: Props) {
                 }))}
             />
 
-            <div className="grid gap-6 xl:grid-cols-[340px_1fr]">
+            <div className="grid w-full max-w-full min-w-0 grid-cols-1 gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
+                <div className="min-w-0">
                 <PatientClinicalTimeline items={preventiveCases.slice(0, 6)} />
+                </div>
 
-                <div className="space-y-6">
+                <div className="min-w-0 space-y-6">
                     <PatientDetailsCard item={item} />
 
                     <PatientAssignedProvidersCard
