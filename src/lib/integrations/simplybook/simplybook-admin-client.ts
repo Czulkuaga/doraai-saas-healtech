@@ -73,43 +73,46 @@ export async function simplyBookAdminRequest<T>(
     try {
         return await executeRequest<T>({
             baseUrl: connection.apiBaseUrl,
-
-            companyLogin:
-                connection.companyLogin,
-
+            companyLogin: connection.companyLogin,
             accessToken,
-
             path: input.path,
             method: input.method,
             body: input.body,
         });
     } catch (error) {
+
         const isExpiredToken =
-            error instanceof SimplyBookApiError &&
-            error.status === 419;
+            isSimplyBookTokenExpired(error);
 
         if (!isExpiredToken) {
             throw error;
         }
+
+        console.log(
+            "[SimplyBook Refresh]",
+            "Token expirado detectado. Intentando refresh..."
+        );
     }
 
-    /*
-     * El token expiró.
-     * Intentamos renovarlo UNA sola vez.
-     */
-    accessToken =
-        await refreshPersistedSimplyBookToken(
-            input.tenantId
+    try {
+        accessToken =
+            await refreshPersistedSimplyBookToken(
+                input.tenantId
+            );
+
+    } catch (error) {
+        console.error(
+            "[SimplyBook Refresh Failed]",
+            error
         );
+
+        throw error;
+    }
 
     return executeRequest<T>({
         baseUrl: connection.apiBaseUrl,
-
-        companyLogin:
-            connection.companyLogin,
-
+        companyLogin: connection.companyLogin,
         accessToken,
-
         path: input.path,
         method: input.method,
         body: input.body,
@@ -159,4 +162,61 @@ async function executeRequest<T>(input: {
             body: input.body,
         }
     );
+}
+
+
+function isSimplyBookTokenExpired(
+    error: unknown
+): boolean {
+    if (
+        !(error instanceof SimplyBookApiError)
+    ) {
+        return false;
+    }
+
+    // Caso clásico documentado
+    if (error.status === 419) {
+        return true;
+    }
+
+    // SimplyBook V2 puede devolver HTTP 401
+    // pero con "Token Expired" en el body/message.
+    if (
+        error.status === 401 &&
+        error.message
+            .trim()
+            .toLowerCase() ===
+        "token expired"
+    ) {
+        return true;
+    }
+
+    const body = error.responseBody;
+
+    if (
+        typeof body === "object" &&
+        body !== null
+    ) {
+        const record =
+            body as Record<string, unknown>;
+
+        const code =
+            Number(record.code);
+
+        const message =
+            typeof record.message === "string"
+                ? record.message
+                    .trim()
+                    .toLowerCase()
+                : "";
+
+        if (
+            code === 419 ||
+            message === "token expired"
+        ) {
+            return true;
+        }
+    }
+
+    return false;
 }
