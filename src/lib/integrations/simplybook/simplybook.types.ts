@@ -3,37 +3,37 @@ export type SimplyBookTokenResult = {
     expiresAt: Date | null;
 };
 
-export type SimplyBookCustomer = {
-    id: string;
-    name: string | null;
-    email: string | null;
-    phone: string | null;
-};
+// export type SimplyBookCustomer = {
+//     id: string;
+//     name: string | null;
+//     email: string | null;
+//     phone: string | null;
+// };
 
-export type SimplyBookCustomerSearchInput = {
-    email?: string | null;
-    phone?: string | null;
-    nationalNumber?: string | null;
-};
+// export type SimplyBookCustomerSearchInput = {
+//     email?: string | null;
+//     phone?: string | null;
+//     nationalNumber?: string | null;
+// };
 
-export type SimplyBookCustomerUpdateInput = {
-    name?: string;
-    email?: string;
-    phone?: string;
-};
+// export type SimplyBookCustomerUpdateInput = {
+//     name?: string;
+//     email?: string;
+//     phone?: string;
+// };
 
-export type SimplyBookCustomerSearchResult =
-    | {
-        status: "FOUND";
-        customer: SimplyBookCustomer;
-    }
-    | {
-        status: "NOT_FOUND";
-    }
-    | {
-        status: "AMBIGUOUS";
-        customers: SimplyBookCustomer[];
-    };
+// export type SimplyBookCustomerSearchResult =
+//     | {
+//         status: "FOUND";
+//         customer: SimplyBookCustomer;
+//     }
+//     | {
+//         status: "NOT_FOUND";
+//     }
+//     | {
+//         status: "AMBIGUOUS";
+//         customers: SimplyBookCustomer[];
+//     };
 
 
 export type SimplyBookAdminAuthInput = {
@@ -149,4 +149,205 @@ export type SimplyBookApiErrorBody = {
     message?: string;
     error?: string;
     errors?: Record<string, unknown>;
+};
+
+export type SimplyBookBooleanLike =
+    | boolean
+    | 0
+    | 1
+    | "0"
+    | "1";
+
+export type SimplyBookAdminClient = {
+    can_be_edited: SimplyBookBooleanLike;
+    is_deleted: SimplyBookBooleanLike;
+
+    email_promo_subscribed: SimplyBookBooleanLike;
+    sms_promo_subscribed: SimplyBookBooleanLike;
+
+    id: number;
+
+    name: string;
+    email: string;
+    phone: string;
+
+    address1: string;
+    address2: string;
+
+    city: string;
+    zip: string;
+
+    country_id: string;
+    state_id: number;
+};
+
+export type SimplyBookAdminClientsMetadata = {
+    items_count: number;
+    pages_count: number;
+    page: number;
+};
+
+export type SimplyBookAdminClientsResponse = {
+    data: SimplyBookAdminClient[];
+
+    metadata: SimplyBookAdminClientsMetadata;
+};
+
+export type SimplyBookAdminClientSearchParams = {
+    search: string;
+
+    page?: number;
+    onPage?: number;
+};
+
+export type MedicloudPatientForSimplyBook = {
+    partnerId: string;
+    code: string;
+
+    firstName: string | null;
+    lastName: string | null;
+
+    email: string | null;
+    emailNormalized: string | null;
+
+    phone: string | null;
+    phoneNormalized: string | null;
+
+    birthDate: Date | null;
+
+    gender: string | null;
+
+    nationalityCode: string | null;
+    preferredLanguageCode: string | null;
+
+    identity: {
+        id: string;
+        type: string;
+
+        nationalNumber: string | null;
+        nationalNumberNormalized: string | null;
+
+        cardNumber: string | null;
+        cardNumberNormalized: string | null;
+
+        nationalityCode: string | null;
+        issuingCountryCode: string | null;
+    } | null;
+
+    address: {
+        id: string;
+
+        street: string | null;
+        houseNumber: string | null;
+        box: string | null;
+
+        postalCode: string | null;
+        city: string | null;
+        region: string | null;
+        countryCode: string | null;
+
+        rawAddress: string | null;
+    } | null;
+};
+
+export type SimplyBookMatchField =
+    | "DOCUMENT"
+    | "EMAIL"
+    | "PHONE"
+    | "BIRTH_DATE"
+    | "NAME";
+
+export type SimplyBookMatchConflict =
+    | "DOCUMENT"
+    | "EMAIL"
+    | "PHONE"
+    | "BIRTH_DATE"
+    | "NAME";
+
+export type SimplyBookCustomerMatchEvaluation = {
+    score: number;
+
+    matchedBy: SimplyBookMatchField[];
+
+    conflicts: SimplyBookMatchConflict[];
+
+    hasHardConflict: boolean;
+};
+
+export type SimplyBookCustomerCandidate = {
+    customer: SimplyBookAdminClient;
+
+    score: number;
+
+    matchedBy: SimplyBookMatchField[];
+
+    conflicts: SimplyBookMatchConflict[];
+
+    hasHardConflict: boolean;
+};
+
+export type ResolveSimplyBookPatientResult =
+    | {
+        status: "LINKED";
+
+        externalCustomerId: string;
+
+        source: "EXISTING_LINK";
+    }
+    | {
+        status: "FOUND";
+
+        externalCustomerId: string;
+
+        confidence: "HIGH";
+
+        matchedBy: SimplyBookMatchField[];
+
+        customer: SimplyBookAdminClient;
+    }
+    | {
+        status: "AMBIGUOUS";
+
+        candidates: SimplyBookCustomerCandidate[];
+    }
+    | {
+        status: "NOT_FOUND";
+    };
+
+
+export type SimplyBookClientFieldOption = {
+    id: string | number | null;
+    value: string;
+    is_default: boolean;
+    position: number;
+};
+
+export type SimplyBookClientFieldDefinition = {
+    id: string;
+    title: string;
+    default_value: string | null;
+    values: SimplyBookClientFieldOption[];
+    value: string;
+    is_visible: boolean;
+    is_optional: boolean;
+    is_built_in: boolean;
+    type: string;
+};
+
+export type SimplyBookClientFieldsResponse = {
+    data: SimplyBookClientFieldDefinition[];
+};
+
+export type SimplyBookClientFieldValueItem = {
+    id: string;
+
+    field: SimplyBookClientFieldDefinition;
+
+    value: string;
+};
+
+export type SimplyBookClientFieldValuesResponse = {
+    id: number;
+
+    fields: SimplyBookClientFieldValueItem[];
 };
